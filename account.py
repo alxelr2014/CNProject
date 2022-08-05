@@ -4,7 +4,6 @@ class Account:
         self.password = password
 
 
-
 class User(Account):
     def __init__(self, username, password):
         super().__init__(username, password)
