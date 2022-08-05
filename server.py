@@ -1,6 +1,9 @@
 import socket
 import argparse
+import json
 from threading import Thread
+
+from handler import Handler
 
 PORT = 8080
 HOST = '127.0.0.1'
@@ -17,6 +20,7 @@ class Server(Thread):
         super().__init__()
         self.host = host
         self.port = port
+        self.handler = Handler()
 
     def run(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -40,16 +44,26 @@ class Server(Thread):
             client_thread.start()
 
     def _client_handler(self, client):
-        command = self._read_from(client)
-        response = 'TODO'
-        self._write_to(client, response)
-        pass
+        while True:
+            try:
+                req = self._read_from(client)
+                response = self.handler.process(req)
+                self._write_to(client, response)
+            except Exception as e:
+                print(str(e))
+                client.close()
+                break
 
     def _read_from(self, src):
-        pass
+        response = bytearray()
+        buffer = src.recv(2048)
+        while buffer:
+            response.extend(buffer)
+            buffer = src.recv(2048)
+        return json.loads(response.decode('ascii'))
 
     def _write_to(self, des, data):
-        pass
+        des.sendall(json.dumps(data).encode('ascii'))
 
 
 if __name__ == '__main__':

@@ -13,10 +13,23 @@ class Handler:
         self._admins_token = []
         self._delimieter = '\t\n'
 
-    def process(self, command):
-        response = ''
-
-        splits = command.split(self._delimiter)
+    def process(self, req):
+        response = {'type':'error', 'message': f"no req with \'{req['type']}\' type supported!e"}
+        if req['type'] == 'login':
+            response = self._login_user(req['username'], req['password'])
+        elif req['type'] == 'register':
+            response = self._register_user(req['username'], req['username'], req['amdin'])
+        elif req['type'] == 'show-all':
+            pass
+        elif req['type'] == 'show-video':
+            pass
+        elif req['type'] == 'upload':
+            pass
+        elif req['type'] == 'like':
+            pass
+        else:
+            response = {'type':'error', 'message': f"no req with \'{req['type']}\' type supported!e"}
+        
         return response
 
     def _generate_token():
