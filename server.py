@@ -2,7 +2,6 @@ import socket
 import argparse
 import json
 from threading import Thread
-
 from handler import Handler
 
 PORT = 8080
@@ -47,7 +46,7 @@ class Server(Thread):
         while True:
             try:
                 req = self._read_from(client)
-                response = self.handler.process(req)
+                response = self.handler.process(req, client)
                 self._write_to(client, response)
             except Exception as e:
                 print(str(e))
@@ -55,12 +54,13 @@ class Server(Thread):
                 break
 
     def _read_from(self, src):
-        response = bytearray()
-        buffer = src.recv(2048)
-        while buffer:
-            response.extend(buffer)
-            buffer = src.recv(2048)
-        return json.loads(response.decode('ascii'))
+        return json.dumps(src.recv(2048).encode('ascii'))
+        # response = bytearray()
+        # buffer = src.recv(2048)
+        # while buffer:
+        #     response.extend(buffer)
+        #     buffer = src.recv(2048)
+        # return json.loads(response.decode('ascii'))
 
     def _write_to(self, des, data):
         des.sendall(json.dumps(data).encode('ascii'))

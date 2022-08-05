@@ -1,8 +1,14 @@
 import numpy as np
 import string
+import cv2
+import pickle
+import struct
+import json
 
 from account import *
 from video import *
+
+PATH = './videos/'
 
 
 class Handler:
@@ -13,12 +19,14 @@ class Handler:
         self._admins_token = []
         self._delimieter = '\t\n'
 
-    def process(self, req):
-        response = {'type':'error', 'message': f"no req with \'{req['type']}\' type supported!e"}
+    def process(self, req, client):
+        response = {'type': 'error',
+                    'message': f"no req with \'{req['type']}\' type supported!e"}
         if req['type'] == 'login':
             response = self._login_user(req['username'], req['password'])
         elif req['type'] == 'register':
-            response = self._register_user(req['username'], req['username'], req['amdin'])
+            response = self._register_user(
+                req['username'], req['username'], req['amdin'])
         elif req['type'] == 'show-all':
             pass
         elif req['type'] == 'show-video':
@@ -27,15 +35,17 @@ class Handler:
             pass
         elif req['type'] == 'like':
             pass
+        elif req['type'] == 'stream':
+            response = self._stream_video(req['video-id'], client)
         else:
-            response = {'type':'error', 'message': f"no req with \'{req['type']}\' type supported!e"}
-        
+            response = {
+                'type': 'error', 'message': f"no req with \'{req['type']}\' type supported!e"}
+
         return response
 
     def _generate_token():
         source = string.ascii_letters + string.digits
         return ''.join(np.random.choice(source, replace=True, size=32))
-
 
     def _login_user(self, username, password):
         user = find_user(username, self._users)
@@ -66,7 +76,7 @@ class Handler:
         video = find_video(video_id, self._videos)
         if video == None:
             return {'type': 'error', 'message': 'no video with this ID!'}
-        
+
         video.add_comment(content)
         return {'type': 'ok'}
 
@@ -78,7 +88,7 @@ class Handler:
         video = find_video(video_id, self._videos)
         if video == None:
             return {'type': 'error', 'message': 'no video with this ID!'}
-        
+
         # process and validation
         if kind == 'like':
             if value == '+':
@@ -99,11 +109,40 @@ class Handler:
 
         return {'type': 'ok'}
 
-    def _upload_video(self, token, username, video_name, content): #todo
-        pass
+    def _upload_video(self, token, username, video_name, data_len, client):  # todo
+        if token not in self._online_users:
+            return {'type': 'error', 'message': 'you need to login first!'}
 
-    def _show_video(self, video_id): #todo
-        pass
+        ack = {'type': 'ok'}
+        client.send(json.dumps(ack))
+
+        with open(PATH + video_name, 'wb') as video:
+            while True:
+                buffer = client.recv(2048)
+                size = min(len(buffer), data_len)
+                video.write(buffer[:size])
+                data_len -= len(buffer)
+                if data_len <= 0:
+                    break
+
+        user = find_user(username, self._users)
+        v_id = self._generate_video_id()
+        video = Video(user, video_name, PATH + video_name, v_id)
+
+    def _stream_video(self, video_id, client):
+        video = find_video(video_id, self._videos)
+        if video == None:
+            return {'type': 'error', 'message': 'no video with this ID'}
+
+        vid = cv2.VideoCapture(video.path)
+        while vid.isOpened():
+            _, frame = vid.read()
+
+            a = pickle.dumps(frame)
+            message_a = struct.pack("Q", len(a))+a
+            client.sendall(message_a)
+            self.send_to_socket(client, message_a)
+        vid.release()
 
     def _restrict_vidoe(self, token, video_id):
         # validation
@@ -112,7 +151,7 @@ class Handler:
         video = find_video(video_id, self._videos)
         if video == None:
             return {'type': 'error', 'message': 'no video with this ID'}
-        
+
         # process
         video.set_restricted()
         return {'type': 'ok'}
@@ -124,7 +163,7 @@ class Handler:
         video = find_video(video_id, self._videos)
         if video == None:
             return {'type': 'error', 'message': 'no video with this ID'}
-        
+
         # process
         video.set_blocked()
         video.user.add_block()
@@ -139,7 +178,7 @@ class Handler:
         user = find_user(username, self._users)
         if user == None:
             return {'type': 'error', 'message': 'no user with username'}
-        
+
         # process
         user.unstrike()
         return {'type': 'ok'}
