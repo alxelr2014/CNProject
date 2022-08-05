@@ -1,8 +1,8 @@
 class User:
-    def __init__(self, username, password, level):
+    def __init__(self, username, password, role):
         self.username = username
         self.password = password
-        self.level = level
+        self.role = role
         self.block_count = 0
         self._is_strike = False
 
