@@ -1,0 +1,17 @@
+login {username} {pass}
+register {username} {pass} {type}
+
+show {video-id}
+
+upload {username/token} {videoname} {data}
+like {username/token} {video-id} {+/-}
+comment {username/token} {video-id} {content}
+
+danger {video-id}
+block {video-id}
+unstrike {username}
+
+accept {admin-username}
+
+# tickets
+# todo

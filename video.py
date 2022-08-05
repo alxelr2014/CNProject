@@ -1,3 +1,5 @@
+
+
 class Video:
     def __init__(self, name, path):
         self.name = name
@@ -7,7 +9,7 @@ class Video:
         self.dislikes = 0
 
     def add_comment(self, comment):
-        self.comments.add(comment)
+        self.comments.append(comment)
 
     def add_like(self):
         self.likes += 1
