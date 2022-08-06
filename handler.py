@@ -9,8 +9,9 @@ import os
 import threading
 
 from account import *
+from ticket import Ticket, TicketState, find_ticket
 from video import *
-
+from token import *
 
 def send(sock, message):
     sock.send(pickle.dumps(message))
@@ -28,7 +29,7 @@ class Handler:
         self._videos = []
         self._users = []
         self._online_users = []
-        self._admins_token = []
+        self._tickets = []
         self._pending_admins = []
         self._manager_token = None
         self._append_lock = threading.Lock()
@@ -82,6 +83,16 @@ class Handler:
         elif req['type'] == 'proxy':
             self._handle_proxy(client)
             raise Exception('proxy thread terminated!')
+        elif req['type'] == 'add-ticket':
+            response = self._add_ticket(req['token'], req['username'], req['message'])
+        elif req['type'] == 'send-ticket':
+            response = self._send_ticke(req['token'], req['ticket-id'])
+        elif req['type'] == 'reply-ticket':
+            response = self._reply_ticket(req['token'], req['ticket-id'], req['message'], req['username'])
+        elif req['type'] == 'close-ticket':
+            response = self._close_ticket(req['token'], req['ticket-id'], req['username'])
+        elif req['type'] == 'list-ticket':
+            response = self._list_tickets(req['token'], req['username'])
         else:
             response = {
                 'type': 'error',
@@ -149,6 +160,8 @@ class Handler:
             self._append_lock.acquire()
             self._pending_admins.append(user)
             self._append_lock.release()
+            id = self._generate_ticket_id()
+            self._add_ticket(id, username, 'proxy info')
 
         self._append_lock.acquire()
         self._users.append(user)
@@ -345,6 +358,7 @@ class Handler:
         self._append_lock.release()
         # send to proxy
         message = {'type': 'add-admin', 'username': username, 'password': password}
+        self._update_proxy_ticket(admin_name, username, password)
         try:
             send(self._proxy_socket, message)
             proxy_response = receive(self._proxy_socket)
@@ -355,3 +369,90 @@ class Handler:
         except:
             print('Run proxy server!')
             return {'type': 'error', 'message': 'Proxy server is down.'}
+
+    def _update_proxy_ticket(self, admin_name, username, password):
+        ticket = None
+        for t in self._tickets:
+            if t.owner == admin_name:
+                if t.content[0][1].startswidth('proxy'):
+                    ticket = t
+                    break
+        message = f'your proxy info, username: {username}, pass:{password}'
+        ticket.add_message('MANAGER', message)
+        ticket.state = TicketState.CLOSED
+
+    def _generate_ticket_id(self):
+        return len(self._tickets)
+
+    def _add_ticket(self, token, username, message):
+        if token not in self._online_users and token != self._proxy_token:
+            return (False, {'type': 'error', 'message': 'you need to login first!'})
+        user = find_user(username, self._users)
+        if user is None:
+            return {'type': 'error', 'message': 'username not exists!'}
+        
+        self._append_lock.acquire()
+        id = self._generate_ticket_id()
+        ticket = Ticket(id, username, message)
+        self._tickets.append(ticket)
+        self._append_lock.release()
+        
+        return {'type': 'ok'}
+
+    def _send_ticket(self, token, ticket_id):
+        if token not in self._online_users and token != self._proxy_token:
+            return {'type': 'error', 'message': 'you need to login first!'}
+        ticket = find_ticket(ticket_id, self._tickets)
+        if ticket is None:
+            return {'type': 'error', 'message': 'no ticket with this ID!'}
+
+        ticket.state = TicketState.PENDING
+        return {'type': 'ok'}
+
+    def _reply_ticket(self, token, ticket_id, message, username):
+        if token not in self._online_users and token != self._proxy_token:
+            return {'type': 'error', 'message': 'you need to login first!'}
+        ticket = find_ticket(ticket_id, self._tickets)
+        if ticket is None:
+            return {'type': 'error', 'message': 'no ticket with this ID!'}
+        
+        ticket.add_message(username, message)
+        if ticket.owner != username:
+            ticket.state = TicketState.SOLVED
+        elif ticket.owner == username:
+            ticket.state = TicketState.PENDING
+        return {'type': 'ok'}
+
+    def _close_ticket(self, token, ticket_id, username):
+        if token not in self._online_users and token != self._proxy_token:
+            return {'type': 'error', 'message': 'you need to login first!'}
+        ticket = find_ticket(ticket_id, self._tickets)
+        if ticket is None:
+            return {'type': 'error', 'message': 'no ticket with this ID!'}
+        if ticket.owner != username:
+            return {'type': 'error', 'message': 'only the owner of ticket can close it!'}
+        
+        ticket.state = TicketState.CLOSED
+        return {'type': 'ok'}
+
+    def _list_tickets(self, token, username):
+        if token not in self._online_users and token != self._proxy_token:
+            return {'type': 'error', 'message': 'you need to login first!'}
+        user = find_user(username, self._users)
+        if user is None:
+            return {'type': 'error', 'message': 'username not exists!'}
+        
+        mask = []
+        if user.role == 'manager':
+            mask = ['admin']
+        elif user.role == 'admin':
+            through_proxy = token == self._proxy_token
+            if through_proxy:
+                mask = ['admin', 'user']
+            else:
+                mask = []
+        
+        tickets = [t for t in self._tickets if t.owner == username]
+        tickets += [t for t in self._tickets if find_user(t.owner, self._users).role in mask and t.state == TicketState.PENDING]
+        
+        return {'type': 'ok', 'content': tickets}
