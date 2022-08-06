@@ -124,7 +124,7 @@ class Handler:
                 role = 'user'
 
         if through_proxy:
-            return {'type': 'ok'}
+            return {'type': 'ok', 'role': role}
         token = self._generate_token(user.role)
         self._append_lock.acquire()
         self._online_users.append(token)
