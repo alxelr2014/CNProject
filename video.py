@@ -1,3 +1,5 @@
+import threading
+
 class Video:
     def __init__(self, user, name, path, id):
         self.user = user
@@ -8,28 +10,39 @@ class Video:
         self.likes = 0
         self.dislikes = 0
         self._restricted = False
-        self._blocked = False
+        self.blocked = False
+        self.liked_users = set()
+        self.disliked_users = set()
+        self.lock = threading.Lock()
 
-    def add_comment(self, comment):
-        self.comments.append(comment)
+    def add_comment(self, username, comment):
+        self.comments.append((username, comment))
 
-    def add_like(self):
-        self.likes += 1
+    def add_like(self, username):
+        if username in self.disliked_users:
+            self.disliked_users = self.disliked_users.remove(username)
+        if username in self.liked_users:
+            self.liked_users = self.liked_users.remove(username)
+        else:
+            self.liked_users = self.liked_users.add(username)
+        
+        self.likes = len(self.liked_users)
 
-    def remove_like(self):
-        self.likes = max(0, self.likes - 1)
-
-    def add_dislike(self):
-        self.dislikes += 1
-
-    def remove_dislike(self):
-        self.dislikes = max(0, self.dislikes - 1)
+    def add_dislike(self, username):
+        if username in self.liked_users:
+            self.liked_users = self.liked_users.remove(username)
+        if username in self.disliked_users:
+            self.disliked_users = self.disliked_users.remove(username)
+        else:
+            self.disliked_users = self.disliked_users.add(username)
+        
+        self.dislikes = len(self.disliked_users)
 
     def set_restricted(self):
         self._restricted = True
     
     def set_block(self):
-        self._blocked = True
+        self.blocked = True
 
 
 def find_video(id, all_videos):

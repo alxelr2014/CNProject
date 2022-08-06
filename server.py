@@ -1,6 +1,6 @@
 import socket
 import argparse
-import json
+import pickle
 from threading import Thread
 from handler import Handler
 
@@ -54,7 +54,7 @@ class Server(Thread):
                 break
 
     def _read_from(self, src):
-        return json.dumps(src.recv(2048).decode('ascii'))
+        return pickle.loads(src.recv(2048))
         # response = bytearray()
         # buffer = src.recv(2048)
         # while buffer:
@@ -63,7 +63,7 @@ class Server(Thread):
         # return json.loads(response.decode('ascii'))
 
     def _write_to(self, des, data):
-        des.sendall(json.dumps(data).encode('ascii'))
+        des.sendall(pickle.dumps(data))
 
 
 if __name__ == '__main__':
