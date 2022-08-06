@@ -23,6 +23,8 @@ def receive(sock):
 class Handler:
     def __init__(self):
         self.base_path = './videos/'
+        if not os.path.exists(self.base_path):
+            os.makedirs(self.base_path)
         self._videos = []
         self._users = []
         self._online_users = []
@@ -78,9 +80,8 @@ class Handler:
         elif req['type'] == 'reject':
             response = self._reject_admin(req['token'], req['admin-username'])
         elif req['type'] == 'proxy':
-            self._proxy_token = self._generate_token('admin')
-            response = {'type': 'ok', 'token': self._proxy_token}
-            self._proxy_socket = client
+            self._handle_proxy(client)
+            raise Exception('proxy thread terminated!')
         else:
             response = {
                 'type': 'error',
@@ -98,6 +99,12 @@ class Handler:
         source = list(string.ascii_letters + string.digits)
         token = ''.join(np.random.choice(source, replace=True, size=size))
         return token
+
+    def _handle_proxy(self, client):
+        self._proxy_socket = client
+        self._proxy_token = self._generate_token('admin')
+        response = {'type': 'ok', 'token': self._proxy_token}
+        send(client, response)
 
     def _login_user(self, username, password):
         user = find_user(username, self._users)

@@ -63,7 +63,8 @@ class Server(Thread):
                 self._write_to(client, response)
             except Exception as e:
                 print(str(e))
-                client.close()
+                if not str(e).startswith('proxy'):
+                    client.close()
                 break
 
     def _load_resources(self):
