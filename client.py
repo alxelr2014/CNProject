@@ -26,7 +26,23 @@ def receive(s=sock):
     return pickle.loads(s.recv(2048))
 
 
+def already_signed():
+    if client_token:
+        print('You are already signed-in.')
+        while True:
+            out = input('Do you want to sign out? (y/n): ')
+            if out in ['y', 'n']:
+                break
+        if out == 'y':
+            signout()
+            main_menu.run()
+        return True
+    return False
+
+
 def signup():
+    if already_signed():
+        return
     username = input('Enter your username: ')
     password = input('Enter your password: ')
     while True:
@@ -44,7 +60,17 @@ def signup():
         print(f'Error: {error}')
 
 
+def signout():
+    global client_token, client_role, client_username
+    client_token = None
+    client_role = 'user'
+    client_username = None
+    main_menu.run()
+
+
 def login():
+    if already_signed():
+        return
     username = input('Enter your username: ')
     password = input('Enter your password: ')
     request = {'type': 'login', 'username': username, 'password': password}
@@ -80,13 +106,12 @@ def upload():
             else:
                 error = response['message']
                 print(f'Error: {error}')
-            # TODO: works alright?
         else:
             error = response['message']
             print(f'Error: {error}')
-        # TODO: works alright?
 
 
+signout_menu = Menu('Sign-out', action=signout)
 signup_menu = Menu('Sign-up', action=signup)
 login_menu = Menu('Login', action=login)
 upload_menu = Menu('Upload a video', action=upload)
@@ -220,15 +245,55 @@ video_menu.submenus = [watch_video_menu, show_comments_menu, show_like_menu, add
 
 user_menu = Menu('Main Menu', [signup_menu, login_menu, upload_menu, videos_menu])
 
-manager_menu = Menu('')
+
+def process_admin(username, state):
+    if state != 'pending':
+        return
+    while True:
+        admin = input('Accept admin? (y/n): ')
+        if admin in ['y', 'n']:
+            break
+    if admin == 'y':
+        request = {'type': 'accept', 'token': client_token, 'admin-username': username}
+    else:
+        request = {'type': 'reject', 'token': client_token, 'admin-username': username}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        print(f'{"Accepted" if admin == "y" else "Rejected"} request successfully.')
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+
+
+def show_admin_requests():
+    request = {'type': 'list-admins', 'token': client_token}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        admins = response['content']
+        admins_requests_menu.submenus = [
+            Menu(f'{admin}: {state}', action=lambda: process_admin(admin, state), parent=admins_requests_menu)
+            for admin, state in admins]
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+
+
+admin_menu = Menu('Admin Menu', [signout_menu])
+
+admins_requests_menu = Menu('See admin requests', action=show_admin_requests)
+manager_menu = Menu('Manager Menu', [signout_menu, admins_requests_menu])
+admins_requests_menu.parent = manager_menu
+
 
 def run_main_menu():
     if client_role == 'user':
         user_menu.run()
     elif client_role == 'admin':
-        pass
+        admin_menu.run()
     else:
-        pass
+        manager_menu.run()
 
 
 main_menu = Menu('Main Menu', action=run_main_menu)
