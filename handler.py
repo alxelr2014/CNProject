@@ -70,21 +70,6 @@ class Handler:
 
         return response
 
-    def _load_videos(self):
-        if not os.path.exists(self.base_path):
-            os.makedirs(self.base_path)
-            return []
-
-        videos = []
-        return videos
-        with os.scandir(self.base_path) as entries:
-            for entry in entries:
-                id = self._generate_video_id()
-                user = User()  # todo
-                v = Video(user, entry.name, self.base_path + entry.name + id)
-                videos.append(v)
-        return videos
-
     def _generate_token(self, type):
         size = 32
         if type == 'admin':
@@ -102,8 +87,10 @@ class Handler:
             return {'type': 'error', 'message': 'username of password is wrong!'}
         if user.password != password:
             return {'type': 'error', 'message': 'username of password is wrong!'}
+        if user in self._pending_admins:
+            return {'type': 'error', 'message': 'your request is still in the pending list!'}
         if user.role == 'admin':
-            return {'type': 'error', 'message': 'access denied! (use proxy server)'}
+            return {'type': 'error', 'message': 'use proxy server'}
         
         token = self._generate_token(user.role)
         self._append_lock.acquire()
@@ -195,7 +182,9 @@ class Handler:
         ack = {'type': 'ok'}
         client.send(pickle.dumps(ack))
 
-        with open(self.base_path + video_name, 'wb') as video:
+        v_id = self._generate_video_id()
+        path = self.base_path + str(v_id) + video_name
+        with open(path, 'wb') as video:
             while True:
                 buffer = client.recv(2048)
                 size = min(len(buffer), data_len)
@@ -207,8 +196,7 @@ class Handler:
         print('Received video successfully')
         user = find_user(username, self._users)
         self._append_lock.acquire()
-        v_id = self._generate_video_id()
-        video = Video(user, video_name, self.base_path + video_name, v_id)
+        video = Video(user, video_name, path, v_id)
         self._videos.append(video)
         self._append_lock.release()
         return {'type': 'ok'}
