@@ -19,9 +19,11 @@ class Handler:
         self._users = []
         self._online_users = []
         self._admins_token = []
+        self._pending_admins = []
         self._manager_token = None
         self._append_lock = threading.Lock()
         self._register_user('manager', 'supreme_manager#2022', admin=2)
+        self._upload_limit = 50 #MB
 
     def process(self, req, client):
         print(req)
@@ -91,7 +93,9 @@ class Handler:
             return {'type': 'error', 'message': 'username of password is wrong!'}
         if user.password != password:
             return {'type': 'error', 'message': 'username of password is wrong!'}
-
+        if user.role == 'admin':
+            return {'type': 'error', 'message': 'access denied! (use proxy server)'}
+        
         token = self._generate_token(user.role)
         self._append_lock.acquire()
         self._online_users.append(token)
@@ -112,6 +116,10 @@ class Handler:
         elif admin == 2:
             role = 'manager'
         user = User(username, password, role)
+        self._append_lock.acquire()
+        self._pending_admins.append()
+        self._append_lock.release()
+
         self._append_lock.acquire()
         self._users.append(user)
         self._append_lock.release()
@@ -171,6 +179,8 @@ class Handler:
     def _upload_video(self, token, username, video_name, data_len, client):
         if token not in self._online_users:
             return {'type': 'error', 'message': 'you need to login first!'}
+        if data_len > self._upload_limit * 1024 * 1024:
+            return {'type': 'error', 'message': 'file size above upload limit!'}
 
         ack = {'type': 'ok'}
         client.send(pickle.dumps(ack))
@@ -258,8 +268,22 @@ class Handler:
         if token != self._manager_token:
             return {'type': 'error', 'message': 'access denied!'}
         
-        response = [user.username for user in self._users if user.role == 'admin']
+        response = [(user.username, 'pending') for user in self._users if (user.role == 'admin' and user not in self._pending_admins)]
+        response += [(user.username, 'pending') for user in self._pending_admins]
         return {'type': 'ok', 'content': response}
+
+    def _reject_admin(self, token, username):
+        if token != self._manager_token:
+            return {'type': 'error', 'message': 'access denied!'}
+        user = find_user(username, self._users)
+        if user == None:
+            return {'type': 'error', 'message': 'no user with username!'}
+        
+        self._append_lock.acquire()
+        self._users.remove(user)
+        self._pending_admins.remove(user)
+        self._append_lock.release()
+        return {'type': 'ok'}
 
     def _accept_admin(self, token, username):
         # validation
@@ -270,6 +294,9 @@ class Handler:
             return {'type': 'error', 'message': 'no user with username!'}
 
         # process
+        self._append_lock.acquire()
+        self._pending_admins.remove(user)
+        self._append_lock.release()
         token = self._generate_token(type='admin')
         # send to proxy
         #
