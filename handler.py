@@ -76,7 +76,7 @@ class Handler:
         elif req['type'] == 'list-admins':
             response = self._list_admins(req['token'])
         elif req['type'] == 'accept':
-            response = self._accept_admin(req['token'], req['admin-username'], req['username'], req['password'])
+            response = self._accept_admin(req['token'], req['admin-username'], req['proxy-username'], req['proxy-password'])
         elif req['type'] == 'reject':
             response = self._reject_admin(req['token'], req['admin-username'])
         elif req['type'] == 'proxy':

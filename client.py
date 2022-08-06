@@ -29,8 +29,9 @@ def receive():
     return pickle.loads(main_socket.recv(2048))
 
 
-def already_signed():
-    if client_token:
+def already_signed(proxy=False):
+    cond = client_token if proxy else client_token and client_username
+    if cond:
         print('You are already signed-in.')
         while True:
             out = input('Do you want to sign out? (y/n): ')
@@ -80,39 +81,49 @@ def login():
     username = input('Enter your username: ')
     password = input('Enter your password: ')
     request = {'type': 'login', 'username': username, 'password': password}
+    global client_token
+    if client_token:
+        request['token'] = client_token
     send(request)
     response = receive()
     if response['type'] == 'ok':
-        global client_token, client_role, client_username
-        client_token = response['token']
+        global client_role, client_username
         client_role = response['role']
+        if client_role == 'admin':
+            video_menu.submenus = [watch_video_menu, show_comments_menu, show_like_menu, restrict_menu, block_menu]
+        else:
+            client_token = response['token']
         client_username = username
         print('Logged-in successfully')
     else:
         error = response['message']
-        if error == 'use proxy server':
-            global main_socket
-            proxy_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            proxy_sock.connect((PROXY_IP, PROXY_PORT))
-            main_socket = proxy_sock
-            send(request)
-            response = receive()
-            if response['type'] == 'ok':
-                client_token = response['token']
-                client_role = response['role']
-                client_username = username
-                print('Logged-in successfully')
-                video_menu.submenus = [watch_video_menu, show_comments_menu, show_like_menu, restrict_menu, block_menu]
-            else:
-                error = response['message']
-                main_socket = server_sock
-                print(f'Error: {error}')
-        else:
-            print(f'Error: {error}')
+        print(f'Error: {error}')
+
+
+def login_proxy():
+    if already_signed(True):
+        return
+    global main_socket
+    proxy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    proxy_socket.connect((PROXY_IP, PROXY_PORT))
+    main_socket = proxy_socket
+    username = input('Enter your proxy username: ')
+    password = input('Enter your proxy password: ')
+    request = {'type': 'login-proxy', 'username': username, 'password': password}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        global client_token
+        client_token = response['token']
+        print('Logged-in successfully')
+    else:
+        main_socket = server_sock
+        error = response['message']
+        print(f'Error: {error}')
 
 
 def upload():
-    if client_token is None:
+    if client_token is None or client_username is None:
         print('You need to login in order to upload a video.')
         return
     path = input('Enter path to the video:\n')
@@ -138,6 +149,7 @@ def upload():
 signout_menu = Menu('Sign-out', action=signout)
 signup_menu = Menu('Sign-up', action=signup)
 login_menu = Menu('Login', action=login)
+login_proxy_menu = Menu('Login into proxy', action=login_proxy)
 upload_menu = Menu('Upload a video', action=upload)
 
 video_name, video_id = None, None
@@ -270,7 +282,7 @@ like_menu = Menu('Like', action=like, parent=video_menu)
 dislike_menu = Menu('Dislike', action=dislike, parent=video_menu)
 video_menu.submenus = [watch_video_menu, show_comments_menu, show_like_menu, add_comment_menu, like_menu, dislike_menu]
 
-user_menu = Menu('Main Menu', [signup_menu, login_menu, upload_menu, videos_menu])
+user_menu = Menu('Main Menu', [signup_menu, login_menu, login_proxy_menu, upload_menu, videos_menu])
 
 
 def process_admin(username, state):
@@ -281,7 +293,10 @@ def process_admin(username, state):
         if admin in ['y', 'n']:
             break
     if admin == 'y':
-        request = {'type': 'accept', 'token': client_token, 'admin-username': username}
+        proxy_username = input("Enter admin's username: ")
+        proxy_password = input("Enter admin's password: ")
+        request = {'type': 'accept', 'token': client_token, 'admin-username': username,
+                   'proxy-username': proxy_username, 'proxy-password': proxy_password}
     else:
         request = {'type': 'reject', 'token': client_token, 'admin-username': username}
     send(request)
