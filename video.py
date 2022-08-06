@@ -39,7 +39,7 @@ class Video:
     def set_restricted(self):
         self._restricted = True
 
-    def set_block(self):
+    def set_blocked(self):
         self.blocked = True
 
     def get_likes(self):
@@ -47,6 +47,7 @@ class Video:
 
     def get_dislikes(self):
         return self.dislikes
+
 
     def __getstate__(self):
         """Return state values to be pickled."""

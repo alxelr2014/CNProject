@@ -18,9 +18,6 @@ client_username = None
 server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_sock.connect((SERVER_IP, SERVER_PORT))
 
-proxy_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-proxy_sock.connect((PROXY_IP, PROXY_PORT))
-
 main_socket = server_sock
 
 
@@ -95,6 +92,8 @@ def login():
         error = response['message']
         if error == 'use proxy server':
             global main_socket
+            proxy_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            proxy_sock.connect((PROXY_IP, PROXY_PORT))
             main_socket = proxy_sock
             send(request)
             response = receive()
@@ -324,7 +323,7 @@ def unstrike_user(user):
     send(request)
     response = receive()
     if response['type'] == 'ok':
-        print('Restricted successfully.')
+        print('Un-striked successfully.')
     else:
         error = response['message']
         print(f'Error: {error}')

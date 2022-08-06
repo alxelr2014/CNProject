@@ -110,7 +110,6 @@ class Proxy(Thread):
         size = 48
         source = list(string.ascii_letters + string.digits)
         token = ''.join(np.random.choice(source, replace=True, size=size))
-        print(token)
         return token
 
     def _transport_to_server(self, server, client):

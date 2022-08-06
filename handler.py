@@ -23,7 +23,7 @@ def receive(sock):
 class Handler:
     def __init__(self):
         self.base_path = './videos/'
-        self._videos = self._load_videos()
+        self._videos = []
         self._users = []
         self._online_users = []
         self._admins_token = []
@@ -37,11 +37,13 @@ class Handler:
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['_append_lock']
+        del state['_proxy_socket']
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         self._append_lock = threading.Lock()
+        self._proxy_socket = None
 
     def process(self, req, client):
         print(req)
@@ -99,7 +101,7 @@ class Handler:
 
     def _login_user(self, username, password):
         user = find_user(username, self._users)
-        if user == None:
+        if user is None:
             return {'type': 'error', 'message': 'username of password is wrong!'}
         if user.password != password:
             return {'type': 'error', 'message': 'username of password is wrong!'}
@@ -194,6 +196,11 @@ class Handler:
             return {'type': 'error', 'message': 'you need to login first!'}
         if data_len > self._upload_limit * 1024 * 1024:
             return {'type': 'error', 'message': 'file size above upload limit!'}
+        user = find_user(username, self._users)
+        if user is None:
+            return {'type': 'error', 'message': 'no user with username'}
+        if user.is_strike:
+            return {'type': 'error', 'message': 'you have been striked 😒'}
 
         ack = {'type': 'ok'}
         client.send(pickle.dumps(ack))
@@ -270,7 +277,7 @@ class Handler:
         # validation
         if token != self._proxy_token:
             return {'type': 'error', 'message': 'access denied!'}
-        
+
         # process
         response = [user.username for user in self._users if user.is_strike]
         return {'type': 'ok', 'content': response}
@@ -280,7 +287,7 @@ class Handler:
         if token != self._proxy_token:
             return {'type': 'error', 'message': 'access denied!'}
         user = find_user(username, self._users)
-        if user == None:
+        if user is None:
             return {'type': 'error', 'message': 'no user with username'}
 
         # process
@@ -300,7 +307,7 @@ class Handler:
         if token != self._manager_token:
             return {'type': 'error', 'message': 'access denied!'}
         user = find_user(username, self._users)
-        if user == None:
+        if user is None:
             return {'type': 'error', 'message': 'no user with username!'}
 
         self._append_lock.acquire()
@@ -314,7 +321,7 @@ class Handler:
         if token != self._manager_token:
             return {'type': 'error', 'message': 'access denied!'}
         user = find_user(username, self._users)
-        if user == None:
+        if user is None:
             return {'type': 'error', 'message': 'no user with username!'}
 
         # process
@@ -323,9 +330,13 @@ class Handler:
         self._append_lock.release()
         # send to proxy
         message = {'type': 'add-admin', 'username': user.username, 'password': user.password}
-        send(self._proxy_socket, message)
-        proxy_response = receive(self._proxy_socket)
-        if proxy_response['type'] == 'ok':
-            return {'type': 'ok'}
-        else:
-            return proxy_response
+        try:
+            send(self._proxy_socket, message)
+            proxy_response = receive(self._proxy_socket)
+            if proxy_response['type'] == 'ok':
+                return {'type': 'ok'}
+            else:
+                return proxy_response
+        except:
+            print('Run proxy server!')
+            return {'type': 'error', 'message': 'Proxy server is down.'}
