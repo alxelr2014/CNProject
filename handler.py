@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import string
 import cv2
@@ -19,14 +20,15 @@ class Handler:
         self._online_users = []
         self._admins_token = []
         self._manager_token = None
-        self._register_user('manager', 'supreme_manager#2022', admin=2)
         self._append_lock = threading.Lock()
+        self._register_user('manager', 'supreme_manager#2022', admin=2)
 
     def process(self, req, client):
+        print(req)
         if req['type'] == 'login':
             response = self._login_user(req['username'], req['password'])
         elif req['type'] == 'register':
-            response = self._register_user(req['username'], req['password'], req['amdin'])
+            response = self._register_user(req['username'], req['password'], req['admin'])
         elif req['type'] == 'list-videos':
             response = self._list_videos()
         elif req['type'] == 'get-video':
@@ -34,7 +36,7 @@ class Handler:
         elif req['type'] == 'stream':
             response = self._stream_video(req['video-id'], client)
         elif req['type'] == 'upload':
-            response = self._upload_video(req['token'], req['username'], req['video_name'], req['len'], client)
+            response = self._upload_video(req['token'], req['username'], req['video-name'], req['len'], client)
         elif req['type'] == 'like':
             response = self._add_like(req['token'], req['username'], req['video-id'], req['kind'])
         elif req['type'] == 'comment':
@@ -72,14 +74,16 @@ class Handler:
                 videos.append(v)
         return videos
 
-    def _generate_token(type):
+    def _generate_token(self, type):
         size = 32
-        if type == 'amdin':
+        if type == 'admin':
             size = 48
         elif type == 'manager':
             size = 64
-        source = string.ascii_letters + string.digits
-        return ''.join(np.random.choice(source, replace=True, size=size))
+        source = list(string.ascii_letters + string.digits)
+        token = ''.join(np.random.choice(source, replace=True, size=size))
+        print(token)
+        return token
 
     def _login_user(self, username, password):
         user = find_user(username, self._users)
@@ -153,11 +157,15 @@ class Handler:
 
     def _get_video(self, video_id):
         # validation
-        video = find_video(video_id, self._videos)
+        video: Video = find_video(video_id, self._videos)
         if video == None:
             return {'type': 'error', 'message': 'no video with this ID!'}
+        video = copy.deepcopy(video)
+        video.path = None
+        video.lock = None
+        video.liked_users = None
+        video.disliked_users = None
 
-        # process
         return {'type': 'ok', 'content': video}
 
     def _upload_video(self, token, username, video_name, data_len, client):
@@ -176,6 +184,7 @@ class Handler:
                 if data_len <= 0:
                     break
 
+        print('Received video successfully')
         user = find_user(username, self._users)
         self._append_lock.acquire()
         v_id = self._generate_video_id()
@@ -197,13 +206,14 @@ class Handler:
         ack = {'type': 'ok', 'frame-count': n_frame}
         client.send(pickle.dumps(ack))
 
-        while vid.isOpened():
+        for i in range(n_frame):
             _, frame = vid.read()
 
             a = pickle.dumps(frame)
             message_a = struct.pack("Q", len(a)) + a
             client.sendall(message_a)
         vid.release()
+        print('Stream ended successfully.')
 
     def _restrict_vidoe(self, token, video_id):
         # validation

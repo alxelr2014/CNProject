@@ -20,15 +20,20 @@ class Menu:
             self.action()
             if not self.submenus and self.parent:
                 self.parent.run()
-        elif self.submenus:
+        if self.submenus:
             print(f'\n{self.name}:')
             for i, subm in enumerate(self.submenus):
                 print(f'{i}. {subm.name}')
-            par_num = self.submenus
+            par_num = len(self.submenus)
             if self.parent:
                 print(f'{par_num}. Back')
-            i = int(input())
-            if i == par_num:
-                self.parent.run()
-            else:
-                self.submenus[i].run()
+            while True:
+                try:
+                    i = int(input())
+                    if self.parent and i == par_num:
+                        self.parent.run()
+                    else:
+                        self.submenus[i].run()
+                    break
+                except (IndexError, ValueError) as e:
+                    print(f'Not valid input: {str(e)}')

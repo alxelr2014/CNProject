@@ -55,6 +55,7 @@ def login():
         client_token = response['token']
         client_role = response['role']
         client_username = username
+        print('Logged-in successfully')
     else:
         error = response['message']
         print(f'Error: {error}')
@@ -67,12 +68,19 @@ def upload():
     path = input('Enter path to the video:\n')
     with open(path, "rb") as video:
         buffer = video.read()
-        request = {'type': 'upload', 'token': client_token, 'username': client_username, 'name': os.path.basename(path),
-                   'len': len(buffer)}
+        request = {'type': 'upload', 'token': client_token, 'username': client_username,
+                   'video-name': os.path.basename(path), 'len': len(buffer)}
         send(request)
         response = receive()
         if response['type'] == 'ok':
             sock.sendall(buffer)
+            response = receive()
+            if response['type'] == 'ok':
+                print('Uploaded successfully')
+            else:
+                error = response['message']
+                print(f'Error: {error}')
+            # TODO: works alright?
         else:
             error = response['message']
             print(f'Error: {error}')
@@ -129,6 +137,7 @@ def get_video_and_stream(n_frame):
         frame = pickle.loads(frame_data)
         cv2.imshow(video_name, frame)
         cv2.waitKey(1)
+    cv2.destroyWindow(video_name)
 
 
 def watch():
@@ -152,9 +161,9 @@ def show_likes():
 
 
 def add_comment():
-    comment = input('Enter your comment')
+    comment = input('Enter your comment:\n')
     request = {'type': 'comment', 'username': client_username, 'token': client_token, 'video-id': video_id,
-               'comment': comment}
+               'content': comment}
     send(request)
     response = receive()
     if response['type'] == 'ok':
@@ -165,7 +174,7 @@ def add_comment():
 
 
 def like():
-    request = {'type': 'comment', 'username': client_username, 'token': client_token, 'video-id': video_id,
+    request = {'type': 'like', 'username': client_username, 'token': client_token, 'video-id': video_id,
                'kind': 'like'}
     send(request)
     response = receive()
@@ -177,7 +186,7 @@ def like():
 
 
 def dislike():
-    request = {'type': 'comment', 'username': client_username, 'token': client_token, 'video-id': video_id,
+    request = {'type': 'like', 'username': client_username, 'token': client_token, 'video-id': video_id,
                'kind': 'dislike'}
     send(request)
     response = receive()
@@ -194,7 +203,7 @@ def get_video_attrs():
     response = receive()
     if response['type'] == 'ok':
         global video
-        video: Video = response['content']
+        video = response['content']
     else:
         error = response['message']
         print(f'Error: {error}')
@@ -207,10 +216,11 @@ show_like_menu = Menu('Show likes and dislikes', action=show_likes, parent=video
 add_comment_menu = Menu('Add comments', action=add_comment, parent=video_menu)
 like_menu = Menu('Like', action=like, parent=video_menu)
 dislike_menu = Menu('Dislike', action=dislike, parent=video_menu)
-video_menu.submenus = [watch_video_menu, show_comments, show_like_menu, add_comment_menu, like_menu, dislike_menu]
+video_menu.submenus = [watch_video_menu, show_comments_menu, show_like_menu, add_comment_menu, like_menu, dislike_menu]
 
 user_menu = Menu('Main Menu', [signup_menu, login_menu, upload_menu, videos_menu])
 
+manager_menu = Menu('')
 
 def run_main_menu():
     if client_role == 'user':
