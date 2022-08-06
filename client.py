@@ -1,6 +1,5 @@
 import socket
 import pickle
-import os
 import cv2
 import struct
 
@@ -9,21 +8,28 @@ from video import Video
 
 SERVER_IP = 'localhost'
 SERVER_PORT = 8080
+PROXY_IP = 'localhost'
+PROXY_PORT = 8585
 
 client_token = None
 client_role = 'user'
 client_username = None
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.connect((SERVER_IP, SERVER_PORT))
+server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_sock.connect((SERVER_IP, SERVER_PORT))
+
+proxy_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+proxy_sock.connect((PROXY_IP, PROXY_PORT))
+
+main_socket = server_sock
 
 
-def send(message, s=sock):
-    s.send(pickle.dumps(message))
+def send(message):
+    main_socket.send(pickle.dumps(message))
 
 
-def receive(s=sock):
-    return pickle.loads(s.recv(2048))
+def receive():
+    return pickle.loads(main_socket.recv(2048))
 
 
 def already_signed():
@@ -61,10 +67,13 @@ def signup():
 
 
 def signout():
-    global client_token, client_role, client_username
+    global client_token, client_role, client_username, main_socket
     client_token = None
     client_role = 'user'
     client_username = None
+    main_socket = server_sock
+    video_menu.submenus = [watch_video_menu, show_comments_menu, show_like_menu, add_comment_menu, like_menu,
+                           dislike_menu]
     main_menu.run()
 
 
@@ -84,7 +93,25 @@ def login():
         print('Logged-in successfully')
     else:
         error = response['message']
-        print(f'Error: {error}')
+        if error == 'use proxy server':
+            global main_socket
+            main_socket = proxy_sock
+            send(request)
+            response = receive()
+            if response['type'] == 'ok':
+                global client_token, client_role, client_username
+                client_token = response['token']
+                client_role = response['role']
+                client_username = username
+                print('Logged-in successfully')
+                video_menu.submenus = [watch_video_menu, show_comments_menu, show_like_menu, restrict_menu, block_menu]
+            else:
+                error = response['message']
+                global main_socket
+                main_socket = server_sock
+                print(f'Error: {error}')
+        else:
+            print(f'Error: {error}')
 
 
 def upload():
@@ -99,7 +126,7 @@ def upload():
         send(request)
         response = receive()
         if response['type'] == 'ok':
-            sock.sendall(buffer)
+            main_socket.sendall(buffer)
             response = receive()
             if response['type'] == 'ok':
                 print('Uploaded successfully')
@@ -135,7 +162,6 @@ def show_videos_menu():
         id, name = videos[i]
         global video_name, video_id
         video_name, video_id = name, id
-        video_menu.name = video_name
         video_menu.run()
     else:
         error = response['message']
@@ -150,12 +176,12 @@ def get_video_and_stream(n_frame):
     payload_size = struct.calcsize("Q")
     for i in range(n_frame):
         while len(stream_data) < payload_size:
-            stream_data += sock.recv(4096)
+            stream_data += main_socket.recv(4096)
         packed_msg_size = stream_data[:payload_size]
         stream_data = stream_data[payload_size:]
         msg_size = struct.unpack("Q", packed_msg_size)[0]
         while len(stream_data) < msg_size:
-            stream_data += sock.recv(4096)
+            stream_data += main_socket.recv(4096)
         frame_data = stream_data[:msg_size]
         stream_data = stream_data[msg_size:]
 
@@ -229,6 +255,10 @@ def get_video_attrs():
     if response['type'] == 'ok':
         global video
         video = response['content']
+        if video._restricted:
+            video_menu.name = f'{video.name}\n☠️Attention: this video may be inappropriate for some users ☠️'
+        else:
+            video_menu.name = video.name
     else:
         error = response['message']
         print(f'Error: {error}')
@@ -280,7 +310,33 @@ def show_admin_requests():
         print(f'Error: {error}')
 
 
-admin_menu = Menu('Admin Menu', [signout_menu])
+def add_restricted_tag():
+    request = {'type': 'restrict', 'video-id': video_id, 'token': client_token}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        print('Restricted successfully.')
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+
+
+def block_video():
+    request = {'type': 'block', 'video-id': video_id, 'token': client_token}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        print('Blocked successfully.')
+        videos_menu.run()
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+        video_menu.run()
+
+
+block_menu = Menu('Block Video', action=block_video)
+restrict_menu = Menu('Restrict Video', action=add_restricted_tag, parent=video_menu)
+admin_menu = Menu('Admin Menu', [signout_menu, video_menu])
 
 admins_requests_menu = Menu('See admin requests', action=show_admin_requests)
 manager_menu = Menu('Manager Menu', [signout_menu, admins_requests_menu])

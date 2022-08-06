@@ -21,29 +21,9 @@ class Video:
 
     def add_like(self, username):
         self._like_dislike(username, self.liked_users, self.disliked_users)
-        return
-        if username in self.disliked_users:
-            self.disliked_users.remove(username)
-        if username in self.liked_users:
-            self.liked_users.remove(username)
-        else:
-            self.liked_users.add(username)
-
-        self.likes = len(self.liked_users)
-        self.dislikes = len(self.disliked_users)
 
     def add_dislike(self, username):
         self._like_dislike(username, self.disliked_users, self.liked_users)
-        return
-        if username in self.liked_users:
-            self.liked_users.remove(username)
-        if username in self.disliked_users:
-            self.disliked_users.remove(username)
-        else:
-            self.disliked_users.add(username)
-
-        self.dislikes = len(self.disliked_users)
-        self.likes = len(self.liked_users)
 
     def _like_dislike(self, username, _to, _from):
         if username in _from:
