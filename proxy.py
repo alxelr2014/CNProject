@@ -118,7 +118,7 @@ class Proxy(Thread):
                 raw_req = client.recv(2048)
                 req = pickle.loads(raw_req)
                 print(req)
-                if req['type'] == 'login':
+                if req['type'] == 'login-proxy':
                     if self._login(req['username'], req['password']):
                         token = self._generate_token()
                         self._lock.acquire()

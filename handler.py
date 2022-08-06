@@ -50,7 +50,7 @@ class Handler:
     def process(self, req, client):
         print(req)
         if req['type'] == 'login':
-            response = self._login_user(req['username'], req['password'])
+            response = self._login_user(req['username'], req['password'], req)
         elif req['type'] == 'register':
             response = self._register_user(req['username'], req['password'], req['admin'])
         elif req['type'] == 'list-videos':
@@ -76,7 +76,7 @@ class Handler:
         elif req['type'] == 'list-admins':
             response = self._list_admins(req['token'])
         elif req['type'] == 'accept':
-            response = self._accept_admin(req['token'], req['admin-username'])
+            response = self._accept_admin(req['token'], req['admin-username'], req['username'], req['password'])
         elif req['type'] == 'reject':
             response = self._reject_admin(req['token'], req['admin-username'])
         elif req['type'] == 'proxy':
@@ -106,24 +106,32 @@ class Handler:
         response = {'type': 'ok', 'token': self._proxy_token}
         send(client, response)
 
-    def _login_user(self, username, password):
+    def _login_user(self, username, password, req):
         user = find_user(username, self._users)
         if user is None:
             return {'type': 'error', 'message': 'username of password is wrong!'}
         if user.password != password:
             return {'type': 'error', 'message': 'username of password is wrong!'}
-        if user in self._pending_admins:
-            return {'type': 'error', 'message': 'your request is still in the pending list!'}
+        role = user.role
+        through_proxy = False
         if user.role == 'admin':
-            return {'type': 'error', 'message': 'use proxy server'}
+            try:
+                token = req['token']
+                if token != self._proxy_token:
+                    return {'type': 'error', 'message': 'invalid proxy token!'}
+                through_proxy = True
+            except:
+                role = 'user'
 
+        if through_proxy:
+            return {'type': 'ok'}
         token = self._generate_token(user.role)
         self._append_lock.acquire()
         self._online_users.append(token)
         self._append_lock.release()
         if user.role == 'manager':
             self._manager_token = token
-        return {'type': 'ok', 'token': token, 'role': user.role}
+        return {'type': 'ok', 'token': token, 'role': role}
 
     def _register_user(self, username, password, admin):
         user = find_user(username, self._users)
@@ -323,11 +331,11 @@ class Handler:
         self._append_lock.release()
         return {'type': 'ok'}
 
-    def _accept_admin(self, token, username):
+    def _accept_admin(self, token, admin_name, username, password):
         # validation
         if token != self._manager_token:
             return {'type': 'error', 'message': 'access denied!'}
-        user = find_user(username, self._users)
+        user = find_user(admin_name, self._users)
         if user is None:
             return {'type': 'error', 'message': 'no user with username!'}
 
@@ -336,7 +344,7 @@ class Handler:
         self._pending_admins.remove(user)
         self._append_lock.release()
         # send to proxy
-        message = {'type': 'add-admin', 'username': user.username, 'password': user.password}
+        message = {'type': 'add-admin', 'username': username, 'password': password}
         try:
             send(self._proxy_socket, message)
             proxy_response = receive(self._proxy_socket)
