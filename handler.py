@@ -12,6 +12,14 @@ from account import *
 from video import *
 
 
+def send(sock, message):
+    sock.send(pickle.dumps(message))
+
+
+def receive(sock):
+    return pickle.loads(sock.recv(2048))
+
+
 class Handler:
     def __init__(self):
         self.base_path = './videos/'
@@ -23,13 +31,14 @@ class Handler:
         self._manager_token = None
         self._append_lock = threading.Lock()
         self._register_user('manager', 'supreme_manager#2022', admin=2)
-        self._upload_limit = 50 #MB
+        self._upload_limit = 50  # MB
+        self._proxy_socket = None
 
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['_append_lock']
         return state
-    
+
     def __setstate__(self, state):
         self.__dict__.update(state)
         self._append_lock = threading.Lock()
@@ -61,7 +70,12 @@ class Handler:
         elif req['type'] == 'list-admins':
             response = self._list_admins(req['token'])
         elif req['type'] == 'accept':
-            response = self._accept_admin(req['token'], req['username'])
+            response = self._accept_admin(req['token'], req['admin-username'])
+        elif req['type'] == 'reject':
+            response = self._reject_admin(req['token'], req['admin-username'])
+        elif req['type'] == 'proxy':
+            response = {'type': 'ok', 'token': self._generate_token('admin')}
+            self._proxy_socket = client
         else:
             response = {
                 'type': 'error',
@@ -78,7 +92,6 @@ class Handler:
             size = 64
         source = list(string.ascii_letters + string.digits)
         token = ''.join(np.random.choice(source, replace=True, size=size))
-        print(token)
         return token
 
     def _login_user(self, username, password):
@@ -91,7 +104,7 @@ class Handler:
             return {'type': 'error', 'message': 'your request is still in the pending list!'}
         if user.role == 'admin':
             return {'type': 'error', 'message': 'use proxy server'}
-        
+
         token = self._generate_token(user.role)
         self._append_lock.acquire()
         self._online_users.append(token)
@@ -208,7 +221,7 @@ class Handler:
         video = find_video(video_id, self._videos)
         if video == None:
             return {'type': 'error', 'message': 'no video with this ID'}
-        
+
         vid = cv2.VideoCapture(video.path)
         n_frame = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
         ack = {'type': 'ok', 'frame-count': n_frame}
@@ -265,8 +278,9 @@ class Handler:
     def _list_admins(self, token):
         if token != self._manager_token:
             return {'type': 'error', 'message': 'access denied!'}
-        
-        response = [(user.username, 'pending') for user in self._users if (user.role == 'admin' and user not in self._pending_admins)]
+
+        response = [(user.username, 'accepted') for user in self._users if
+                    (user.role == 'admin' and user not in self._pending_admins)]
         response += [(user.username, 'pending') for user in self._pending_admins]
         return {'type': 'ok', 'content': response}
 
@@ -276,7 +290,7 @@ class Handler:
         user = find_user(username, self._users)
         if user == None:
             return {'type': 'error', 'message': 'no user with username!'}
-        
+
         self._append_lock.acquire()
         self._users.remove(user)
         self._pending_admins.remove(user)
@@ -295,9 +309,11 @@ class Handler:
         self._append_lock.acquire()
         self._pending_admins.remove(user)
         self._append_lock.release()
-        token = self._generate_token(type='admin')
         # send to proxy
-        #
-        #
-
-        return {'type': 'ok'}
+        message = {'type': 'add-admin', 'username': user.username, 'password': user.password}
+        send(self._proxy_socket, message)
+        proxy_response = receive(self._proxy_socket)
+        if proxy_response['type'] == 'error':
+            return {'type': 'ok'}
+        else:
+            return proxy_response

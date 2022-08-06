@@ -3,7 +3,6 @@ import argparse
 import pickle
 import string
 import sys
-from logging import raiseExceptions
 from threading import Thread, Lock
 
 import numpy as np
@@ -11,7 +10,6 @@ import numpy as np
 PORT = 8585
 SERVER_PORT = 8080
 HOST = '127.0.0.1'
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-p', '--port', type=int, default=PORT,
@@ -22,11 +20,12 @@ PORT = args.port
 
 class Proxy(Thread):
     def __init__(self, host, port, server_host, server_port):
+        super().__init__()
         self.host = host
         self.port = port
         self.server_host = server_host
         self.server_port = server_port
-        self._control_sock = self._connect_for_control(server_host, server_port)
+        self._control_sock = None
         self._users = []
         self._tokens = []
         self._lock = Lock()
@@ -40,10 +39,10 @@ class Proxy(Thread):
             self._write_to(server, identification)
             msg = self._read_from(server)
             if msg['type'] != 'ok':
-                raiseExceptions("can't connect to server :(")
-            
+                raise Exception("can't connect")
+            self._proxy_token = msg['token']
             thread = Thread(target=self._handle_server, args=(server,))
-            thread.run()
+            thread.start()
             return server
         except Exception as e:
             print(str(e))
@@ -53,7 +52,6 @@ class Proxy(Thread):
         while True:
             try:
                 req = self._read_from(server)
-                response = None
                 if req['type'] == 'add-admin':
                     self._users.append((req['username'], req['password']))
                     response = {'type': 'ok'}
@@ -62,13 +60,14 @@ class Proxy(Thread):
                 self._write_to(server, response)
             except Exception as e:
                 print(str(e))
-
+                break
 
     def run(self):
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._control_sock = self._connect_for_control(self.server_host, self.server_port)
+        proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            server.bind((self.host, self.port))
-            server.listen(1)
+            proxy.bind((self.host, self.port))
+            proxy.listen(1)
             print(f'proxy is up on address {(self.host, self.port)}')
         except Exception as e:
             print(str(e))
@@ -78,16 +77,17 @@ class Proxy(Thread):
         try:
             while True:
                 print('proxy is listening ...')
-                client, address = server.accept()
+                client, address = proxy.accept()
                 print(f'Client accepted with address: {address}')
                 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                server.connect((self.server_host, self.server_port)) 
+                server.connect((self.server_host, self.server_port))
                 client_thread = Thread(
                     target=self._client_handler,
-                    args=(client, server, )
+                    args=(client, server,)
                 )
                 client_thread.start()
-        except:
+        except Exception as e:
+            print(f'Inja: {str(e)}')
             server.close()
             # self.save_state()
 
@@ -118,6 +118,7 @@ class Proxy(Thread):
             try:
                 raw_req = client.recv(2048)
                 req = pickle.loads(raw_req)
+                print(req)
                 if req['type'] == 'login':
                     if self._login(req['username'], req['password']):
                         token = self._generate_token()
@@ -129,12 +130,15 @@ class Proxy(Thread):
                         response = {'type': 'error', 'message': 'username or password is wrong!'}
                     self._write_to(client, response)
                 else:
-                    if req['token'] in self._tokens:
-                        req['token'] = self._proxy_token
-                        self._write_to(server, req)
+                    if 'token' in req:
+                        if req['token'] in self._tokens:
+                            req['token'] = self._proxy_token
+                            self._write_to(server, req)
+                        else:
+                            response = {'type': 'error', 'message': 'access denied!'}
+                            self._write_to(client, response)
                     else:
-                        response = {'type': 'error', 'message': 'access denied!'}
-                        self._write_to(client, response)
+                        self._write_to(server, req)
             except KeyError as e:
                 response = {'type': 'error', 'message': f'request object has no {str(e)}'}
                 self._write_to(client, response)
@@ -160,8 +164,8 @@ class Proxy(Thread):
         client_to_server = Thread(target=self._transport_to_server, args=(server, client,))
         server_to_client = Thread(target=self._transport_to_client, args=(client, server,))
 
-        client_to_server.run()
-        server_to_client.run()
+        client_to_server.start()
+        server_to_client.start()
 
 
 if __name__ == '__main__':
@@ -173,6 +177,8 @@ if __name__ == '__main__':
         try:
             c = input()
             if c == 'exit':
-                proxy.save_state()
+                # proxy.save_state()
+                exit()
         except KeyboardInterrupt:
-            proxy.save_state()
+            # proxy.save_state()
+            exit()

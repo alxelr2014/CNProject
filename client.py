@@ -99,7 +99,6 @@ def login():
             send(request)
             response = receive()
             if response['type'] == 'ok':
-                global client_token, client_role, client_username
                 client_token = response['token']
                 client_role = response['role']
                 client_username = username
@@ -107,7 +106,6 @@ def login():
                 video_menu.submenus = [watch_video_menu, show_comments_menu, show_like_menu, restrict_menu, block_menu]
             else:
                 error = response['message']
-                global main_socket
                 main_socket = server_sock
                 print(f'Error: {error}')
         else:
@@ -333,10 +331,22 @@ def block_video():
         print(f'Error: {error}')
         video_menu.run()
 
+def unstrike():
+    request = {'type': 'strike-list', 'token': client_token}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        print('Blocked successfully.')
+        videos_menu.run()
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+        video_menu.run()
 
 block_menu = Menu('Block Video', action=block_video)
 restrict_menu = Menu('Restrict Video', action=add_restricted_tag, parent=video_menu)
-admin_menu = Menu('Admin Menu', [signout_menu, video_menu])
+unstrike_menu = Menu('Un-strike users', action=unstrike)
+admin_menu = Menu('Admin Menu', [signout_menu, videos_menu])
 
 admins_requests_menu = Menu('See admin requests', action=show_admin_requests)
 manager_menu = Menu('Manager Menu', [signout_menu, admins_requests_menu])
