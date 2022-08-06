@@ -44,6 +44,11 @@ class Video:
     def set_block(self):
         self.blocked = True
 
+    def get_likes(self):
+        return self.likes
+
+    def get_dislikes(self):
+        return self.dislikes
 
 def find_video(id, all_videos):
     for video in all_videos:

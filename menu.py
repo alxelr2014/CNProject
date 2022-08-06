@@ -18,7 +18,7 @@ class Menu:
     def run(self):
         if self.action:
             self.action()
-            if self.parent:
+            if not self.submenus and self.parent:
                 self.parent.run()
         elif self.submenus:
             print(f'\n{self.name}:')

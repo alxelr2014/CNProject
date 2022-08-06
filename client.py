@@ -1,8 +1,11 @@
 import socket
-import json
+import pickle
 import os
+import cv2
+import struct
 
 from menu import *
+from video import Video
 
 SERVER_IP = 'localhost'
 SERVER_PORT = 8080
@@ -16,11 +19,11 @@ sock.connect((SERVER_IP, SERVER_PORT))
 
 
 def send(message, s=sock):
-    s.send(json.dumps(message).encode('ascii'))
+    s.send(pickle.dumps(message))
 
 
 def receive(s=sock):
-    return json.loads(s.recv(1024).decode('ascii'))
+    return pickle.loads(s.recv(2048))
 
 
 def signup():
@@ -30,7 +33,7 @@ def signup():
         admin = input('Request to be an admin? (y/n): ')
         if admin in ['y', 'n']:
             break
-    admin = admin == 'y'
+    admin = (admin == 'y') * 1
     request = {'type': 'register', 'username': username, 'password': password, 'admin': admin}
     send(request)
     response = receive()
@@ -80,40 +83,124 @@ signup_menu = Menu('Sign-up', action=signup)
 login_menu = Menu('Login', action=login)
 upload_menu = Menu('Upload a video', action=upload)
 
+video_name, video_id = None, None
+video: Video = None
+
 
 def show_videos_menu():
-    pass
-    # TODO: get videos list
+    request = {'type': 'list-videos'}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        videos = response['content']
+        for i, (id, name) in enumerate(videos):
+            print(f'{i}. {name}')
+        i = input('Enter video\'s number: ')
+        if not i.isnumeric() or not 0 <= int(i) < len(videos):
+            return
+        i = int(i)
+        id, name = videos[i]
+        global video_name, video_id
+        video_name, video_id = name, id
+        video_menu.name = video_name
+        video_menu.run()
+    else:
+        error = response['message']
+        print(f'Error: {error}')
 
 
 videos_menu = Menu('Watch Videos', action=show_videos_menu)
 
 
+def get_video_and_stream(n_frame):
+    stream_data = b''
+    payload_size = struct.calcsize("Q")
+    for i in range(n_frame):
+        while len(stream_data) < payload_size:
+            stream_data += sock.recv(4096)
+        packed_msg_size = stream_data[:payload_size]
+        stream_data = stream_data[payload_size:]
+        msg_size = struct.unpack("Q", packed_msg_size)[0]
+        while len(stream_data) < msg_size:
+            stream_data += sock.recv(4096)
+        frame_data = stream_data[:msg_size]
+        stream_data = stream_data[msg_size:]
+
+        frame = pickle.loads(frame_data)
+        cv2.imshow(video_name, frame)
+        cv2.waitKey(1)
+
+
 def watch():
-    pass
+    request = {'type': 'stream', 'video-id': video_id}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        get_video_and_stream(response['frame-count'])
+    else:
+        error = response['message']
+        print(f'Error: {error}')
 
 
 def show_comments():
-    pass
+    for username, comment in video.comments:
+        print(f'"{username}":\n{comment}\n')
 
 
 def show_likes():
-    pass
+    print(f'This video has {video.get_likes()} likes and {video.get_dislikes()} dislikes.')
 
 
 def add_comment():
-    pass
+    comment = input('Enter your comment')
+    request = {'type': 'comment', 'username': client_username, 'token': client_token, 'video-id': video_id,
+               'comment': comment}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        print('Comment added successfully.')
+    else:
+        error = response['message']
+        print(f'Error: {error}')
 
 
 def like():
-    pass
+    request = {'type': 'comment', 'username': client_username, 'token': client_token, 'video-id': video_id,
+               'kind': 'like'}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        pass
+    else:
+        error = response['message']
+        print(f'Error: {error}')
 
 
 def dislike():
-    pass
+    request = {'type': 'comment', 'username': client_username, 'token': client_token, 'video-id': video_id,
+               'kind': 'dislike'}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        pass
+    else:
+        error = response['message']
+        print(f'Error: {error}')
 
 
-video_menu = Menu('VIDEO_NAME', parent=videos_menu)
+def get_video_attrs():
+    request = {'type': 'get-video', 'video-id': video_id}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        global video
+        video: Video = response['content']
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+
+
+video_menu = Menu('VIDEO_NAME', parent=videos_menu, action=get_video_attrs)
 watch_video_menu = Menu('Watch', action=watch, parent=video_menu)
 show_comments_menu = Menu('Show comments', action=show_comments, parent=video_menu)
 show_like_menu = Menu('Show likes and dislikes', action=show_likes, parent=video_menu)
@@ -124,7 +211,17 @@ video_menu.submenus = [watch_video_menu, show_comments, show_like_menu, add_comm
 
 user_menu = Menu('Main Menu', [signup_menu, login_menu, upload_menu, videos_menu])
 
-main_menu = Menu('Main Menu')
+
+def run_main_menu():
+    if client_role == 'user':
+        user_menu.run()
+    elif client_role == 'admin':
+        pass
+    else:
+        pass
+
+
+main_menu = Menu('Main Menu', action=run_main_menu)
 
 while True:
     main_menu.run()
