@@ -5,6 +5,7 @@ import struct
 
 from menu import *
 from video import Video
+from ticket import TicketState
 
 SERVER_IP = 'localhost'
 SERVER_PORT = 8080
@@ -281,6 +282,99 @@ add_comment_menu = Menu('Add comments', action=add_comment, parent=video_menu)
 like_menu = Menu('Like', action=like, parent=video_menu)
 dislike_menu = Menu('Dislike', action=dislike, parent=video_menu)
 video_menu.submenus = [watch_video_menu, show_comments_menu, show_like_menu, add_comment_menu, like_menu, dislike_menu]
+
+
+def new_ticket():
+    ticket_message = input('Enter your ticket message:\n')
+    request = {'type': 'add-ticket', 'token': client_token, 'username': client_username, 'message': ticket_message}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        print('Ticket created successfully')
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+
+
+def string_summary(str, max_len=20):
+    if len(str) <= max_len:
+        return str
+    else:
+        return f'{str[:max_len]} ...'
+
+
+def send_ticket(ticket_id):
+    request = {'type': 'send-ticket', 'token': client_token, 'ticket-id': ticket_id}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        print('Ticket sent successfully')
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+
+
+def reply_ticket(ticket_id):
+    ticket_message = input('Enter your ticket message:\n')
+    request = {'type': 'reply-ticket', 'token': client_token, 'ticket-id': ticket_id, 'username': client_username,
+               'message': ticket_message}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        print('Ticket sent successfully')
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+
+
+def close_ticket(ticket_id):
+    request = {'type': 'close-ticket', 'token': client_token, 'ticket-id': ticket_id}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        print('Ticket closed successfully')
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+
+
+def print_ticket(ticket):
+    print(f'owner: {ticket.owner}')
+    print(f'id: {ticket.id} - state: {ticket.state.name}')
+    for user, message in ticket.content:
+        print(f'{user}:\n{message}')
+        print('-' * 6)
+
+
+def see_tickets():
+    request = {'type': 'list-ticket', 'token': client_token, 'username': client_username}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        tickets = response['content']
+        tickets_submenus = []
+        for ticket in tickets:
+            send_ticket_menu = Menu('Send Ticket', action=lambda: send_ticket(ticket.id))
+            reply_ticket_menu = Menu('Reply', action=lambda: reply_ticket(ticket.id))
+            close_ticket_menu = Menu('Close Thread', action=lambda: close_ticket(ticket.id))
+            if ticket.state == TicketState.NEW:
+                submenus = [send_ticket_menu, reply_ticket_menu, close_ticket_menu]
+            elif ticket.state == TicketState.CLOSED:
+                submenus = []
+            else:
+                submenus = [reply_ticket_menu, close_ticket_menu]
+            tickets_submenus.append(
+                Menu(f'owner: {ticket.owner} - state: {ticket.state.name} - {string_summary(ticket.content[0][1])}',
+                     submenus, parent=see_tickets_menu, action=lambda: print_ticket(ticket)))
+        see_tickets_menu.submenus = tickets_submenus
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+
+
+new_ticket_menu = Menu('New Ticket', action=new_ticket)
+see_tickets_menu = Menu('See Last Tickets', action=see_tickets)
+tickets_menu = Menu('Tickets', [new_ticket_menu, see_tickets_menu])
 
 user_menu = Menu('Main Menu', [signup_menu, login_menu, login_proxy_menu, upload_menu, videos_menu])
 
