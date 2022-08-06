@@ -1,5 +1,6 @@
 import socket
 import json
+import os
 
 from menu import *
 
@@ -8,6 +9,7 @@ SERVER_PORT = 8080
 
 client_token = None
 client_role = 'user'
+client_username = None
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.connect((SERVER_IP, SERVER_PORT))
@@ -46,9 +48,10 @@ def login():
     send(request)
     response = receive()
     if response['type'] == 'ok':
-        global client_token, client_role
+        global client_token, client_role, client_username
         client_token = response['token']
         client_role = response['role']
+        client_username = username
     else:
         error = response['message']
         print(f'Error: {error}')
@@ -59,7 +62,18 @@ def upload():
         print('You need to login in order to upload a video.')
         return
     path = input('Enter path to the video:\n')
-    # TODO: how to send video over socket
+    with open(path, "rb") as video:
+        buffer = video.read()
+        request = {'type': 'upload', 'token': client_token, 'username': client_username, 'name': os.path.basename(path),
+                   'len': len(buffer)}
+        send(request)
+        response = receive()
+        if response['type'] == 'ok':
+            sock.sendall(buffer)
+        else:
+            error = response['message']
+            print(f'Error: {error}')
+        # TODO: works alright?
 
 
 signup_menu = Menu('Sign-up', action=signup)
