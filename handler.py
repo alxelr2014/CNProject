@@ -25,6 +25,15 @@ class Handler:
         self._register_user('manager', 'supreme_manager#2022', admin=2)
         self._upload_limit = 50 #MB
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_append_lock']
+        return state
+    
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._append_lock = threading.Lock()
+
     def process(self, req, client):
         print(req)
         if req['type'] == 'login':
@@ -116,9 +125,10 @@ class Handler:
         elif admin == 2:
             role = 'manager'
         user = User(username, password, role)
-        self._append_lock.acquire()
-        self._pending_admins.append()
-        self._append_lock.release()
+        if role == 'admin':
+            self._append_lock.acquire()
+            self._pending_admins.append(user)
+            self._append_lock.release()
 
         self._append_lock.acquire()
         self._users.append(user)

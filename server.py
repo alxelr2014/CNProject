@@ -1,6 +1,8 @@
 import socket
 import argparse
 import pickle
+import os
+import sys
 from threading import Thread
 from handler import Handler
 
@@ -19,7 +21,8 @@ class Server(Thread):
         super().__init__()
         self.host = host
         self.port = port
-        self.handler = Handler()
+        self.resource_path = './resources/'
+        self.handler = self._load_resources()
 
     def run(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -32,15 +35,25 @@ class Server(Thread):
             print(f"server couldn't connect to {(self.host, self.port)}")
             exit()
 
-        while True:
-            print('Server is listening ...')
-            client, address = server.accept()
-            print(f'Client accepted with address: {address}')
-            client_thread = Thread(
-                target=self._client_handler,
-                args=(client,)
-            )
-            client_thread.start()
+        try:
+            while True:
+                print('Server is listening ...')
+                client, address = server.accept()
+                print(f'Client accepted with address: {address}')
+                client_thread = Thread(
+                    target=self._client_handler,
+                    args=(client,)
+                )
+                client_thread.start()
+        except:
+            server.close()
+            self.save_state()
+
+    def _read_from(self, src):
+        return pickle.loads(src.recv(2048))
+
+    def _write_to(self, des, data):
+        des.sendall(pickle.dumps(data))
 
     def _client_handler(self, client):
         while True:
@@ -53,20 +66,47 @@ class Server(Thread):
                 client.close()
                 break
 
-    def _read_from(self, src):
-        return pickle.loads(src.recv(2048))
-        # response = bytearray()
-        # buffer = src.recv(2048)
-        # while buffer:
-        #     response.extend(buffer)
-        #     buffer = src.recv(2048)
-        # return json.loads(response.decode('ascii'))
+    def _load_resources(self):
+        if not os.path.exists(self.resource_path):
+            os.makedirs(self.resource_path)
 
-    def _write_to(self, des, data):
-        des.sendall(pickle.dumps(data))
+        path = self.resource_path + 'handler.pickle'
+        load = False
+        if os.path.isfile(path):
+            try:
+                with open(path, 'rb') as f:
+                    h = pickle.load(f)
+                    print('handler loaded successfully!')
+                    load = True
+                    return h
+            except:
+                load = False
+
+        if not load:
+            h = Handler()
+            with open(path, 'wb') as f:
+                pickle.dump(h, f)
+            return h
+
+    def save_state(self):
+        path = self.resource_path + 'handler.pickle'
+        if os.path.exists(path):
+            os.remove(path)
+        with open(path, 'wb') as f:
+            pickle.dump(self.handler, f)
+        print('handler state saved successfully!')
+        sys.exit()
 
 
 if __name__ == '__main__':
-    Server(HOST, PORT).start()
-    # .setDaemon(True).start()
-    # input()
+    server = Server(HOST, PORT)
+    server.setDaemon(True)
+    server.start()
+
+    while True:
+        try:
+            c = input()
+            if c == 'exit':
+                server.save_state()
+        except KeyboardInterrupt:
+            server.save_state()
