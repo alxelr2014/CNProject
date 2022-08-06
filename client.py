@@ -353,10 +353,6 @@ def see_tickets():
     response = receive()
     if response['type'] == 'ok':
         tickets = response['content']
-        # tickets_submenus = [Menu(
-        #     f'owner: {ticket.owner} - state: {ticket.state.name} - message: {string_summary(ticket.content[0][1])}',
-        #     [Menu('Send Ticket', action=lambda: send_ticket(ticket.id))],
-        #     action=lambda: print_ticket(ticket), parent=tickets_menu) for ticket in tickets]
         tickets_submenus = []
         for ticket in tickets:
             send_ticket_menu = Menu('Send Ticket', action=send_ticket, arg=ticket.id)
