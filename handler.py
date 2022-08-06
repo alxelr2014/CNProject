@@ -65,6 +65,8 @@ class Handler:
             response = self._restrict_vidoe(req['token'], req['video-id'])
         elif req['type'] == 'block':
             response = self._block_video(req['token'], req['video-id'])
+        elif req['type'] == 'list-strike':
+            response = self._list_strikes(req['token'])
         elif req['type'] == 'unstrike':
             response = self._unstrike_user(req['token'], req['username'])
         elif req['type'] == 'list-admins':

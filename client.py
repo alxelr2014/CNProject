@@ -319,6 +319,17 @@ def add_restricted_tag():
         print(f'Error: {error}')
 
 
+def unstrike_user(user):
+    request = {'type': 'unstrike', 'username': user, 'token': client_token}
+    send(request)
+    response = receive()
+    if response['type'] == 'ok':
+        print('Restricted successfully.')
+    else:
+        error = response['message']
+        print(f'Error: {error}')
+
+
 def block_video():
     request = {'type': 'block', 'video-id': video_id, 'token': client_token}
     send(request)
@@ -331,22 +342,24 @@ def block_video():
         print(f'Error: {error}')
         video_menu.run()
 
+
 def unstrike():
-    request = {'type': 'strike-list', 'token': client_token}
+    request = {'type': 'list-strike', 'token': client_token}
     send(request)
     response = receive()
     if response['type'] == 'ok':
-        print('Blocked successfully.')
-        videos_menu.run()
+        striked_users = response['content']
+        unstrike_menu.submenus = [Menu(user, action=lambda: unstrike_user(user), parent=unstrike_menu)
+                                  for user in striked_users]
     else:
         error = response['message']
         print(f'Error: {error}')
-        video_menu.run()
+
 
 block_menu = Menu('Block Video', action=block_video)
 restrict_menu = Menu('Restrict Video', action=add_restricted_tag, parent=video_menu)
 unstrike_menu = Menu('Un-strike users', action=unstrike)
-admin_menu = Menu('Admin Menu', [signout_menu, videos_menu])
+admin_menu = Menu('Admin Menu', [signout_menu, videos_menu, unstrike_menu])
 
 admins_requests_menu = Menu('See admin requests', action=show_admin_requests)
 manager_menu = Menu('Manager Menu', [signout_menu, admins_requests_menu])
