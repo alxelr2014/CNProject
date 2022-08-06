@@ -74,7 +74,8 @@ class Handler:
         elif req['type'] == 'reject':
             response = self._reject_admin(req['token'], req['admin-username'])
         elif req['type'] == 'proxy':
-            response = {'type': 'ok', 'token': self._generate_token('admin')}
+            self._proxy_token = self._generate_token('admin')
+            response = {'type': 'ok', 'token': self._proxy_token}
             self._proxy_socket = client
         else:
             response = {
@@ -238,7 +239,7 @@ class Handler:
 
     def _restrict_vidoe(self, token, video_id):
         # validation
-        if token not in self._admins_token:
+        if token != self._proxy_token:
             return {'type': 'error', 'message': 'access denied!'}
         video = find_video(video_id, self._videos)
         if video == None:
@@ -250,7 +251,7 @@ class Handler:
 
     def _block_video(self, token, video_id):
         # validation
-        if token not in self._admins_token:
+        if token != self._proxy_token:
             return {'type': 'error', 'message': 'access denied!'}
         video = find_video(video_id, self._videos)
         if video == None:
@@ -263,9 +264,18 @@ class Handler:
             video.user.set_strike()
         return {'type': 'ok'}
 
+    def _list_strikes(self, token):
+        # validation
+        if token != self._proxy_token:
+            return {'type': 'error', 'message': 'access denied!'}
+        
+        # process
+        response = [user.username for user in self._users if user.is_strike]
+        return {'type': 'ok', 'content': response}
+
     def _unstrike_user(self, token, username):
         # validation
-        if token not in self._admins_token:
+        if token != self._proxy_token:
             return {'type': 'error', 'message': 'access denied!'}
         user = find_user(username, self._users)
         if user == None:
@@ -313,7 +323,7 @@ class Handler:
         message = {'type': 'add-admin', 'username': user.username, 'password': user.password}
         send(self._proxy_socket, message)
         proxy_response = receive(self._proxy_socket)
-        if proxy_response['type'] == 'error':
+        if proxy_response['type'] == 'ok':
             return {'type': 'ok'}
         else:
             return proxy_response

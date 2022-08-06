@@ -4,16 +4,17 @@ class User:
         self.password = password
         self.role = role
         self.block_count = 0
-        self._is_strike = False
+        self.is_strike = False
 
     def add_block(self):
         self.block_count += 1
 
     def set_strike(self):
-        self._is_strike = True
+        self.is_strike = True
 
     def unstrike(self):
-        self._is_strike = False
+        self.is_strike = False
+        self.block_count = 0
 
 
 def find_user(username, all_users):
