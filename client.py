@@ -1,3 +1,4 @@
+import copy
 import socket
 import pickle
 import cv2
@@ -328,7 +329,7 @@ def reply_ticket(ticket_id):
 
 
 def close_ticket(ticket_id):
-    request = {'type': 'close-ticket', 'token': client_token, 'ticket-id': ticket_id}
+    request = {'type': 'close-ticket', 'token': client_token, 'ticket-id': ticket_id, 'username': client_username}
     send(request)
     response = receive()
     if response['type'] == 'ok':
@@ -352,31 +353,47 @@ def see_tickets():
     response = receive()
     if response['type'] == 'ok':
         tickets = response['content']
+        # tickets_submenus = [Menu(
+        #     f'owner: {ticket.owner} - state: {ticket.state.name} - message: {string_summary(ticket.content[0][1])}',
+        #     [Menu('Send Ticket', action=lambda: send_ticket(ticket.id))],
+        #     action=lambda: print_ticket(ticket), parent=tickets_menu) for ticket in tickets]
         tickets_submenus = []
         for ticket in tickets:
-            send_ticket_menu = Menu('Send Ticket', action=lambda: send_ticket(ticket.id))
-            reply_ticket_menu = Menu('Reply', action=lambda: reply_ticket(ticket.id))
-            close_ticket_menu = Menu('Close Thread', action=lambda: close_ticket(ticket.id))
+            send_ticket_menu = Menu('Send Ticket', action=send_ticket, arg=ticket.id)
+            reply_ticket_menu = Menu('Reply', action=reply_ticket, arg=ticket.id)
+            close_ticket_menu = Menu('Close Thread', action=close_ticket, arg=ticket.id)
             if ticket.state == TicketState.NEW:
                 submenus = [send_ticket_menu, reply_ticket_menu, close_ticket_menu]
             elif ticket.state == TicketState.CLOSED:
                 submenus = []
             else:
                 submenus = [reply_ticket_menu, close_ticket_menu]
-            tickets_submenus.append(
-                Menu(f'owner: {ticket.owner} - state: {ticket.state.name} - {string_summary(ticket.content[0][1])}',
-                     submenus, parent=see_tickets_menu, action=lambda: print_ticket(ticket)))
+            one_ticket_menu = Menu(
+                f'owner: {ticket.owner} - state: {ticket.state.name} - message: {string_summary(ticket.content[0][1])}',
+                submenus, action=print_ticket, parent=tickets_menu)
+            one_ticket_menu.extra_arg = ticket
+            tickets_submenus.append(one_ticket_menu)
+
         see_tickets_menu.submenus = tickets_submenus
     else:
         error = response['message']
         print(f'Error: {error}')
 
 
+def tickets_menu_handler():
+    if client_token is None or client_username is None:
+        print('You need to login in order to upload a video.')
+        main_menu.run()
+        return True
+    return False
+
+
 new_ticket_menu = Menu('New Ticket', action=new_ticket)
 see_tickets_menu = Menu('See Last Tickets', action=see_tickets)
-tickets_menu = Menu('Tickets', [new_ticket_menu, see_tickets_menu])
+tickets_menu = Menu('Tickets', [new_ticket_menu, see_tickets_menu], action=tickets_menu_handler)
+see_tickets_menu.parent = tickets_menu
 
-user_menu = Menu('Main Menu', [signup_menu, login_menu, login_proxy_menu, upload_menu, videos_menu])
+user_menu = Menu('Main Menu', [signup_menu, login_menu, login_proxy_menu, upload_menu, videos_menu, tickets_menu])
 
 
 def process_admin(username, state):
@@ -467,10 +484,10 @@ def unstrike():
 block_menu = Menu('Block Video', action=block_video)
 restrict_menu = Menu('Restrict Video', action=add_restricted_tag, parent=video_menu)
 unstrike_menu = Menu('Un-strike users', action=unstrike)
-admin_menu = Menu('Admin Menu', [signout_menu, videos_menu, unstrike_menu])
+admin_menu = Menu('Admin Menu', [signout_menu, videos_menu, unstrike_menu, tickets_menu])
 
 admins_requests_menu = Menu('See admin requests', action=show_admin_requests)
-manager_menu = Menu('Manager Menu', [signout_menu, admins_requests_menu])
+manager_menu = Menu('Manager Menu', [signout_menu, admins_requests_menu, tickets_menu])
 admins_requests_menu.parent = manager_menu
 
 
@@ -484,6 +501,7 @@ def run_main_menu():
 
 
 main_menu = Menu('Main Menu', action=run_main_menu)
+tickets_menu.parent = main_menu
 
 while True:
     main_menu.run()

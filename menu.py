@@ -6,20 +6,26 @@ def clear_terminal():
 
 
 class Menu:
-    def __init__(self, name, submenus=None, action=None, parent=None):
+    def __init__(self, name, submenus=None, action=None, parent=None, arg=None):
         self.name = name
         self.submenus = [] if submenus is None else submenus
         self.action = action
         self.parent = parent
+        self.extra_arg = arg
 
     def add_submenu(self, submenu):
         self.submenus.append(submenu)
 
     def run(self):
         if self.action:
-            self.action()
+            if self.extra_arg:
+                end = self.action(self.extra_arg)
+            else:
+                end = self.action()
             if not self.submenus and self.parent:
                 self.parent.run()
+            if end:
+                return
         if self.submenus:
             print(f'\n{self.name}:')
             for i, subm in enumerate(self.submenus):

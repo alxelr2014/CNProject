@@ -13,6 +13,7 @@ from ticket import Ticket, TicketState, find_ticket
 from video import *
 from token import *
 
+
 def send(sock, message):
     sock.send(pickle.dumps(message))
 
@@ -77,7 +78,8 @@ class Handler:
         elif req['type'] == 'list-admins':
             response = self._list_admins(req['token'])
         elif req['type'] == 'accept':
-            response = self._accept_admin(req['token'], req['admin-username'], req['proxy-username'], req['proxy-password'])
+            response = self._accept_admin(req['token'], req['admin-username'], req['proxy-username'],
+                                          req['proxy-password'])
         elif req['type'] == 'reject':
             response = self._reject_admin(req['token'], req['admin-username'])
         elif req['type'] == 'proxy':
@@ -86,7 +88,7 @@ class Handler:
         elif req['type'] == 'add-ticket':
             response = self._add_ticket(req['token'], req['username'], req['message'])
         elif req['type'] == 'send-ticket':
-            response = self._send_ticke(req['token'], req['ticket-id'])
+            response = self._send_ticket(req['token'], req['ticket-id'])
         elif req['type'] == 'reply-ticket':
             response = self._reply_ticket(req['token'], req['ticket-id'], req['message'], req['username'])
         elif req['type'] == 'close-ticket':
@@ -159,9 +161,9 @@ class Handler:
         if role == 'admin':
             self._append_lock.acquire()
             self._pending_admins.append(user)
-            self._append_lock.release()
             id = self._generate_ticket_id()
-            self._add_ticket(id, username, 'proxy info')
+            self._tickets.append(Ticket(id, username, 'proxy info'))
+            self._append_lock.release()
 
         self._append_lock.acquire()
         self._users.append(user)
@@ -374,7 +376,7 @@ class Handler:
         ticket = None
         for t in self._tickets:
             if t.owner == admin_name:
-                if t.content[0][1].startswidth('proxy'):
+                if t.content[0][1].startswith('proxy'):
                     ticket = t
                     break
         message = f'your proxy info, username: {username}, pass:{password}'
@@ -386,17 +388,17 @@ class Handler:
 
     def _add_ticket(self, token, username, message):
         if token not in self._online_users and token != self._proxy_token:
-            return (False, {'type': 'error', 'message': 'you need to login first!'})
+            return {'type': 'error', 'message': 'you need to login first!'}
         user = find_user(username, self._users)
         if user is None:
             return {'type': 'error', 'message': 'username not exists!'}
-        
+
         self._append_lock.acquire()
         id = self._generate_ticket_id()
         ticket = Ticket(id, username, message)
         self._tickets.append(ticket)
         self._append_lock.release()
-        
+
         return {'type': 'ok'}
 
     def _send_ticket(self, token, ticket_id):
@@ -415,7 +417,7 @@ class Handler:
         ticket = find_ticket(ticket_id, self._tickets)
         if ticket is None:
             return {'type': 'error', 'message': 'no ticket with this ID!'}
-        
+
         ticket.add_message(username, message)
         if ticket.owner != username:
             ticket.state = TicketState.SOLVED
@@ -431,7 +433,7 @@ class Handler:
             return {'type': 'error', 'message': 'no ticket with this ID!'}
         if ticket.owner != username:
             return {'type': 'error', 'message': 'only the owner of ticket can close it!'}
-        
+
         ticket.state = TicketState.CLOSED
         return {'type': 'ok'}
 
@@ -441,7 +443,7 @@ class Handler:
         user = find_user(username, self._users)
         if user is None:
             return {'type': 'error', 'message': 'username not exists!'}
-        
+
         mask = []
         if user.role == 'manager':
             mask = ['admin']
@@ -451,8 +453,10 @@ class Handler:
                 mask = ['admin', 'user']
             else:
                 mask = []
-        
+
         tickets = [t for t in self._tickets if t.owner == username]
-        tickets += [t for t in self._tickets if find_user(t.owner, self._users).role in mask and t.state == TicketState.PENDING]
-        
+        tickets = list(set(tickets)
+                       .union([t for t in self._tickets if
+                               find_user(t.owner, self._users).role in mask and t.state == TicketState.PENDING]))
+
         return {'type': 'ok', 'content': tickets}
