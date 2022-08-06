@@ -54,7 +54,7 @@ class Server(Thread):
                 break
 
     def _read_from(self, src):
-        return json.dumps(src.recv(2048).encode('ascii'))
+        return json.dumps(src.recv(2048).decode('ascii'))
         # response = bytearray()
         # buffer = src.recv(2048)
         # while buffer:
