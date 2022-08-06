@@ -160,12 +160,12 @@ class Handler:
         # process
         return {'type': 'ok', 'content': video}
 
-    def _upload_video(self, token, username, video_name, data_len, client):  # todo
+    def _upload_video(self, token, username, video_name, data_len, client):
         if token not in self._online_users:
             return {'type': 'error', 'message': 'you need to login first!'}
 
         ack = {'type': 'ok'}
-        client.send(json.dumps(ack))
+        client.send(pickle.dumps(ack))
 
         with open(self.base_path + video_name, 'wb') as video:
             while True:
@@ -191,8 +191,12 @@ class Handler:
         video = find_video(video_id, self._videos)
         if video == None:
             return {'type': 'error', 'message': 'no video with this ID'}
-
+        
         vid = cv2.VideoCapture(video.path)
+        n_frame = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+        ack = {'type': 'ok', 'frame-count': n_frame}
+        client.send(pickle.dumps(ack))
+
         while vid.isOpened():
             _, frame = vid.read()
 
