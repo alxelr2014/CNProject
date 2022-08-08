@@ -134,10 +134,12 @@ class Proxy(Thread):
                             req['token'] = self._proxy_token
                             self._write_to(server, req)
                         else:
-                            response = {'type': 'error', 'message': 'access denied!'}
+                            response = {'type': 'error', 'message': 'access to proxy denied!'}
                             self._write_to(client, response)
                     else:
-                        self._write_to(server, req)
+                        response = {'type': 'error', 'message': 'access to proxy denied!'}
+                        self._write_to(client, response)
+                        # self._write_to(server, req)
             except KeyError as e:
                 response = {'type': 'error', 'message': f'request object has no {str(e)}'}
                 self._write_to(client, response)

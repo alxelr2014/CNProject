@@ -10,11 +10,11 @@ PORT = 8080
 HOST = '127.0.0.1'
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-p', '--port', type=int, default=PORT,
-                    help='port number of server')
+parser.add_argument('-p', '--port', type=int, default=PORT, help='port number of server')
+parser.add_argument('-n', '--new', action="store_true")
 args = parser.parse_args()
 PORT = args.port
-
+new_handler = args.new
 
 class Server(Thread):
     def __init__(self, host, port):
@@ -23,6 +23,7 @@ class Server(Thread):
         self.port = port
         self.resource_path = './resources/'
         self.handler = self._load_resources()
+        self.ip_socket_dict = dict()
 
     def run(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -39,13 +40,15 @@ class Server(Thread):
             while True:
                 print('Server is listening ...')
                 client, address = server.accept()
+                self.ip_socket_dict[address[0]] = client
                 print(f'Client accepted with address: {address}')
                 client_thread = Thread(
                     target=self._client_handler,
                     args=(client,)
                 )
                 client_thread.start()
-        except:
+        except Exception as e:
+            print(str(e))
             server.close()
             self.save_state()
 
@@ -73,6 +76,8 @@ class Server(Thread):
 
         path = self.resource_path + 'handler.pickle'
         load = False
+        if new_handler:
+            return Handler()
         if os.path.isfile(path):
             try:
                 with open(path, 'rb') as f:
