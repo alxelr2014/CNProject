@@ -1,7 +1,4 @@
-from threading import Thread
 import datetime
-import telnetlib
-from time import sleep
 
 BLOCK = -1
 ALLOW = 1
@@ -12,12 +9,17 @@ class DDOS:
         self.time_interval = time_interval
         self.connection_log = []
         self.blacklist = []
+        self.whitelist= []
 
 
+    def add_to_whitelist(self,ip_address):
+        self.whitelist.append(ip_address)
 
     def add_connection(self, ip_address):
         if ip_address in self.blacklist:
             return BLOCK
+        if ip_address in self.whitelist:
+            return ALLO
         # removes the expired connections
         while len(self.connection_log) > 0 and datetime.datetime.now() - self.connection_log[0]['time'] > self.time_interval:
             self.connection_log.pop(0)
@@ -37,6 +39,6 @@ class DDOS:
 
 
 
-ddos = DDOS(3,datetime.timedelta(0,10,0),1,'facebook.com',8080)
+ddos = DDOS(3,datetime.timedelta(0,10,0))
 
 
