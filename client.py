@@ -1,6 +1,8 @@
 import copy
 import socket
 import pickle
+import sys
+
 import cv2
 import struct
 
@@ -24,11 +26,19 @@ main_socket = server_sock
 
 
 def send(message):
-    main_socket.send(pickle.dumps(message))
+    try:
+        main_socket.send(pickle.dumps(message))
+    except Exception as e:
+        print('Connection closed.\nExiting program...')
+        exit()
 
 
 def receive():
-    return pickle.loads(main_socket.recv(2048))
+    try:
+        return pickle.loads(main_socket.recv(2048))
+    except Exception as e:
+        print('Connection closed.\nExiting program...')
+        exit()
 
 
 def already_signed(proxy=False):
