@@ -1,3 +1,4 @@
+import datetime
 import socket
 import argparse
 import pickle
@@ -5,6 +6,7 @@ import os
 import sys
 from threading import Thread
 from handler import Handler
+from ddos import DDOS
 
 PORT = 8080
 HOST = '127.0.0.1'
@@ -16,6 +18,7 @@ args = parser.parse_args()
 PORT = args.port
 new_handler = args.new
 
+
 class Server(Thread):
     def __init__(self, host, port):
         super().__init__()
@@ -24,6 +27,7 @@ class Server(Thread):
         self.resource_path = './resources/'
         self.handler = self._load_resources()
         self.ip_socket_dict = dict()
+        self.ddos_handler = DDOS(3, datetime.timedelta(0,10,0))
 
     def run(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -40,7 +44,11 @@ class Server(Thread):
             while True:
                 print('Server is listening ...')
                 client, address = server.accept()
-                self.ip_socket_dict[address[0]] = client
+                if not self.ddos_handler.add_connection(address[0]):
+                    print('your ip address blocked! ☠️')
+                    self._block_ip(address[0])
+                    continue
+                self.ip_socket_dict[address[0]] = self.ip_socket_dict.get(address[0], []) + [client]
                 print(f'Client accepted with address: {address}')
                 client_thread = Thread(
                     target=self._client_handler,
@@ -51,6 +59,10 @@ class Server(Thread):
             print(str(e))
             server.close()
             self.save_state()
+
+    def _block_ip(self, ip_addr):
+        for sock in self.ip_socket_dict[ip_addr]:
+            sock.close()
 
     def _read_from(self, src):
         return pickle.loads(src.recv(2048))
