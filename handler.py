@@ -259,7 +259,7 @@ class Handler:
 
     def _stream_video(self, video_id, client):
         video = find_video(video_id, self._videos)
-        if video == None:
+        if video is None:
             return {'type': 'error', 'message': 'no video with this ID'}
 
         vid = cv2.VideoCapture(video.path)

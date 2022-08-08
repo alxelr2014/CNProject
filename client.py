@@ -203,7 +203,7 @@ def get_video_and_stream(n_frame):
 
 
 def watch():
-    request = {'type': 'stream', 'video-id': video_id}
+    request = {'type': 'stream', 'video-id': video_id, 'token': client_token}
     send(request)
     response = receive()
     if response['type'] == 'ok':
@@ -260,7 +260,7 @@ def dislike():
 
 
 def get_video_attrs():
-    request = {'type': 'get-video', 'video-id': video_id}
+    request = {'type': 'get-video', 'video-id': video_id, 'token': client_token}
     send(request)
     response = receive()
     if response['type'] == 'ok':
@@ -378,7 +378,7 @@ def see_tickets():
 
 def tickets_menu_handler():
     if client_token is None or client_username is None:
-        print('You need to login in order to upload a video.')
+        print('You need to login in order to use tickets.')
         main_menu.run()
         return True
     return False
