@@ -174,6 +174,9 @@ def show_videos_menu():
     response = receive()
     if response['type'] == 'ok':
         videos = response['content']
+        if len(videos) == 0:
+            print('Currently there is no videos.')
+            return
         for i, (id, name) in enumerate(videos):
             print(f'{i}. {name}')
         i = input('Enter video\'s number: ')

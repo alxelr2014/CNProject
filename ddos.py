@@ -10,10 +10,9 @@ class DDOS:
         self.time_interval = time_interval
         self.connection_log = []
         self.blacklist = []
-        self.whitelist= []
+        self.whitelist = []
 
-
-    def add_to_whitelist(self,ip_address):
+    def add_to_whitelist(self, ip_address):
         self.whitelist.append(ip_address)
 
     def add_connection(self, ip_address):
@@ -22,24 +21,22 @@ class DDOS:
         if ip_address in self.whitelist:
             return ALLOW
         # removes the expired connections
-        while len(self.connection_log) > 0 and datetime.datetime.now() - self.connection_log[0]['time'] > self.time_interval:
+        while len(self.connection_log) > 0 and datetime.datetime.now() - self.connection_log[0][
+            'time'] > self.time_interval:
             self.connection_log.pop(0)
 
         # adds the new connection
-        self.connection_log.append({'ip':ip_address, 'time':datetime.datetime.now()})
+        self.connection_log.append({'ip': ip_address, 'time': datetime.datetime.now()})
 
         # checks for threshold
         count = 0
         for connection in self.connection_log:
             if connection['ip'] == ip_address:
                 count += 1
-        
+
         if count >= self.blacklist_threshold:
             return BLOCK
         return ALLOW
 
 
-
-ddos = DDOS(3,datetime.timedelta(0,10,0))
-
-
+ddos = DDOS(3, datetime.timedelta(0, 10, 0))
