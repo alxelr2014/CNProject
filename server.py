@@ -52,7 +52,7 @@ class Server(Thread):
                 print(f'Client accepted with address: {address}')
                 client_thread = Thread(
                     target=self._client_handler,
-                    args=(client,)
+                    args=(client,address,)
                 )
                 client_thread.start()
         except Exception as e:
@@ -70,7 +70,7 @@ class Server(Thread):
     def _write_to(self, des, data):
         des.sendall(pickle.dumps(data))
 
-    def _client_handler(self, client):
+    def _client_handler(self,client,address):
         while True:
             try:
                 req = self._read_from(client)
@@ -80,6 +80,8 @@ class Server(Thread):
                 print(str(e))
                 if not str(e).startswith('proxy'):
                     client.close()
+                else:
+                    self.ddos_handler.add_to_whitelist(address[0])
                 break
 
     def _load_resources(self):
