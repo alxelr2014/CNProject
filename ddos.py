@@ -35,6 +35,7 @@ class DDOS:
                 count += 1
         
         if count >= self.blacklist_threshold:
+            self.blacklist.append(ip_address)
             return BLOCK
         return ALLOW
 

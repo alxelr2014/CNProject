@@ -1,7 +1,8 @@
 from threading import Thread
 import telnetlib
 import time
-
+from xmlrpc.client import Server
+import server
 class Ping:
     def __init__(self, server_ip,server_port,ping_threshold=0):
 
@@ -28,9 +29,9 @@ class Ping:
             except Exception:
                 print("The server is not available.")
            
-            time.sleep(0.5)
+            # time.sleep(0.5)
 
 
-ddos = Ping('127.0.0.1',8080,1)
+ddos = Ping(server.HOST,server.PORT,1.5)
 
 
