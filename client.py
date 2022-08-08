@@ -159,7 +159,7 @@ video: Video = None
 
 
 def show_videos_menu():
-    request = {'type': 'list-videos'}
+    request = {'type': 'list-videos', 'token': client_token}
     send(request)
     response = receive()
     if response['type'] == 'ok':
