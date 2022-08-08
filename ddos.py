@@ -1,10 +1,11 @@
 import datetime
 
-BLOCK = -1
-ALLOW = 1
+BLOCK = False
+ALLOW = True
+
 
 class DDOS:
-    def __init__(self,blacklist_threshold, time_interval):
+    def __init__(self, blacklist_threshold, time_interval):
         self.blacklist_threshold = blacklist_threshold
         self.time_interval = time_interval
         self.connection_log = []
