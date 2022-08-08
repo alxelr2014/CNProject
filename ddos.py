@@ -19,7 +19,7 @@ class DDOS:
         if ip_address in self.blacklist:
             return BLOCK
         if ip_address in self.whitelist:
-            return ALLO
+            return ALLOW
         # removes the expired connections
         while len(self.connection_log) > 0 and datetime.datetime.now() - self.connection_log[0]['time'] > self.time_interval:
             self.connection_log.pop(0)

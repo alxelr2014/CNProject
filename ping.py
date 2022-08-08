@@ -14,25 +14,23 @@ class Ping:
 
     def ping(self,server_ip,server_port,ping_threshold):
         n = 10
-        while n:
+        while n > 0:
             n-=1
             try:
                 start = time.time()
                 with telnetlib.Telnet(server_ip,server_port) as tn:
                     end = time.time()
                     if end-start > ping_threshold:
-                        print("ali gir nade! ",end-start)
-                        pass
+                        print("The server is busy, the rtt is ",end-start)
                     else:
-                        print('hi')
+                        print("The server is free, the rtt is ",end-start)
                     tn.close()
             except Exception:
-                print("bye")
-                pass
+                print("The server is not available.")
            
             time.sleep(0.5)
 
 
-ddos = Ping('127.0.0.1',8080)
+ddos = Ping('127.0.0.1',8080,1)
 
 
